@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PgrSpineRenderer", "PgrSpineRenderer\PgrSpineRenderer.csproj", "{4982EB5A-F79D-4377-B34A-32C3771B7BDC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4982EB5A-F79D-4377-B34A-32C3771B7BDC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4982EB5A-F79D-4377-B34A-32C3771B7BDC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4982EB5A-F79D-4377-B34A-32C3771B7BDC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4982EB5A-F79D-4377-B34A-32C3771B7BDC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
