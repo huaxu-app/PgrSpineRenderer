@@ -1,14 +1,13 @@
-﻿using System.Diagnostics;
-using System.Numerics;
+﻿using System.Numerics;
 using FFMpegCore;
 using FFMpegCore.Extensions.SkiaSharp;
 using FFMpegCore.Pipes;
-using PgrSpineRenderer;
 using SkiaSharp;
 using Spine;
-using TextureLoader = PgrSpineRenderer.TextureLoader;
 
-class Program
+namespace PgrSpineRenderer;
+
+internal static class Program
 {
     private const float Fps = 30.0f;
     private static readonly Vector2 CanvasSize = new(1920, 1080);
@@ -33,39 +32,43 @@ class Program
                               for example `idle.webm`.
 
                               """);
-            
-            
+
+
             return;
         }
-        
-        var skeletons = args.Select(arg =>
-        {
-            var skeleton = LoadSkeleton(arg);
-            PositionSkeleton(skeleton, CanvasSize);
-            return skeleton;
-        }).ToArray();
 
-        var animations = skeletons[0].data.animations;
+        var data = args.Select(LoadSkeletonData).ToArray();
+
+        var animations = data[0].animations;
         Console.WriteLine($"Found {animations.Count} animations:");
         foreach (var animation in animations)
+        {
             Console.WriteLine($"- {animation.name}");
+            await GenerateVideo(data, animation.name);
+        }
 
-        await Task.WhenAll(animations.Select(animation => GenerateVideo(skeletons, animation.name)));
+        Console.WriteLine("All animations rendered successfully");
     }
 
-    private static Skeleton LoadSkeleton(string skeletonName)
+    private static SkeletonData LoadSkeletonData(string skeletonName)
     {
         var atlas = new Atlas($"{skeletonName}.atlas.txt", new TextureLoader());
         var json = new SkeletonJson(atlas)
         {
             Scale = 0.5f
         };
-        var skeletonData = json.ReadSkeletonData($"{skeletonName}.json");
-        return new Skeleton(skeletonData);
+        return json.ReadSkeletonData($"{skeletonName}.json");
     }
 
-    private static async Task GenerateVideo(IReadOnlyList<Skeleton> skeletons, string animationName)
+    private static async Task GenerateVideo(IEnumerable<SkeletonData> skeletonData, string animationName)
     {
+        var skeletons = skeletonData.Select(s =>
+        {
+            var skeleton = new Skeleton(s);
+            PositionSkeleton(skeleton, CanvasSize);
+            return skeleton;
+        }).ToArray();
+
         var outputPath = $"{animationName}.webm";
         var ok = await FFMpegArguments.FromPipeInput(
                 new RawVideoPipeSource(GenerateFrames(skeletons, animationName, CanvasSize, Fps))
@@ -112,7 +115,6 @@ class Program
 
         var frames = (int)Math.Ceiling(duration * fps);
         var frameTime = 1.0f / fps;
-        var renderer = new Renderer();
 
         for (var i = 0; i < frames; i++)
         {
@@ -125,7 +127,7 @@ class Program
                 state.Update(frameTime);
                 state.Apply(skeletons[j]);
                 skeletons[j].UpdateWorldTransform();
-                renderer.Draw(canvas, skeletons[j]);
+                Renderer.Draw(canvas, skeletons[j]);
             }
 
             yield return new BitmapVideoFrameWrapper(bitmap);

@@ -4,21 +4,18 @@ using Spine;
 
 namespace PgrSpineRenderer;
 
-public class Renderer
+public static class Renderer
 {
-    private readonly SKPaint _paint = new()
+    private static readonly int[] QuadTriangles = [0, 1, 2, 2, 3, 0];
+
+    public static void Draw(SKCanvas canvas, Skeleton skeleton)
     {
-        FilterQuality = SKFilterQuality.High
-    };
-
-    private SKImage? _lastTexture;
-
-    private int[] QuadTriangles { get; } = [0, 1, 2, 1, 3, 2];
-
-
-    public void Draw(SKCanvas canvas, Skeleton skeleton)
-    {
+        SKImage? lastTexture = null;
         var clipper = new SkeletonClipping();
+        var paint = new SKPaint
+        {
+            FilterQuality = SKFilterQuality.High
+        };
         canvas.Save();
 
         foreach (var slot in skeleton.DrawOrder)
@@ -67,10 +64,10 @@ public class Renderer
             }
 
             if (texture is null) continue;
-            if (_lastTexture != texture)
+            if (lastTexture != texture)
             {
-                _lastTexture = texture;
-                _paint.Shader = texture.ToShader();
+                lastTexture = texture;
+                paint.Shader = texture.ToShader();
             }
 
 
@@ -110,7 +107,7 @@ public class Renderer
             }
 
             // Determine and set correct blend mode
-            _paint.BlendMode = slot.data.BlendMode switch
+            paint.BlendMode = slot.data.BlendMode switch
             {
                 BlendMode.Screen => SKBlendMode.Screen,
                 BlendMode.Additive => SKBlendMode.Plus,
@@ -125,7 +122,7 @@ public class Renderer
                 colors.ToArray(),
                 SKBlendMode.Modulate,
                 indices,
-                _paint
+                paint
             );
 
             clipper.ClipEnd(slot);
