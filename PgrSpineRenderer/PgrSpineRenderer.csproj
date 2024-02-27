@@ -5,6 +5,12 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <PublishSingleFile>true</PublishSingleFile>
+        <PublishTrimmed>true</PublishTrimmed>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
 
     <ItemGroup>
@@ -13,5 +19,9 @@
         <PackageReference Include="SkiaSharp" Version="2.88.7"/>
         <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="2.88.7"/>
     </ItemGroup>
-
+    
+    <Target Name="SpicNSpan" AfterTargets="Clean">
+        <RemoveDir Directories="$(TargetDir)"/> <!-- bin -->
+        <RemoveDir Directories="$(ProjectDir)$(BaseIntermediateOutputPath)"/> <!-- obj -->
+    </Target>
 </Project>
