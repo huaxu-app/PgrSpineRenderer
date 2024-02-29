@@ -9,17 +9,17 @@
         <PublishTrimmed>true</PublishTrimmed>
         <PublishReadyToRun>true</PublishReadyToRun>
         <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-        <DebugType>none</DebugType>
-        <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="FFMpegCore" Version="5.1.0"/>
         <PackageReference Include="FFMpegCore.Extensions.SkiaSharp" Version="5.0.0"/>
+        <PackageReference Include="ShellProgressBar" Version="5.2.0" />
         <PackageReference Include="SkiaSharp" Version="2.88.7"/>
         <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="2.88.7"/>
+        <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     </ItemGroup>
-    
+
     <Target Name="SpicNSpan" AfterTargets="Clean">
         <RemoveDir Directories="$(TargetDir)"/> <!-- bin -->
         <RemoveDir Directories="$(ProjectDir)$(BaseIntermediateOutputPath)"/> <!-- obj -->

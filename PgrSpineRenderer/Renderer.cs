@@ -1,134 +1,148 @@
 using System.Numerics;
+using FFMpegCore;
+using FFMpegCore.Enums;
+using FFMpegCore.Extensions.SkiaSharp;
+using FFMpegCore.Pipes;
+using ShellProgressBar;
 using SkiaSharp;
 using Spine;
 
 namespace PgrSpineRenderer;
 
-public static class Renderer
+public class Renderer(float fps, Vector2 canvasSize)
 {
-    private static readonly int[] QuadTriangles = [0, 1, 2, 2, 3, 0];
+    private readonly List<SkeletonData> _skeletonData = [];
+    public List<string> Animations { get; private set; } = [];
 
-    public static void Draw(SKCanvas canvas, Skeleton skeleton)
+    /// <summary>
+    ///     Add a skeleton to the renderer. Takes a *partial* path to the skeleton files, without extension.
+    /// </summary>
+    /// <param name="path"></param>
+    public void AddSkeleton(string path)
     {
-        SKImage? lastTexture = null;
-        var clipper = new SkeletonClipping();
-        var paint = new SKPaint
+        var atlasPath = File.Exists($"{path}.atlas") ? $"{path}.atlas" : $"{path}.atlas.txt";
+        var atlas = new Atlas(atlasPath, new TextureLoader());
+        var json = new SkeletonJson(atlas)
         {
-            FilterQuality = SKFilterQuality.High
+            Scale = 0.5f
         };
-        canvas.Save();
+        var skeletonData = json.ReadSkeletonData($"{path}.json");
 
-        foreach (var slot in skeleton.DrawOrder)
+        // No animations yet? Add them
+        if (Animations.Count == 0)
+            Animations = skeletonData.animations.Select(a => a.name).ToList();
+        else if (Animations.Any(a => skeletonData.animations.All(s => s.name != a)))
+            throw new RenderException($"The skeleton {path} does not contain all animations of the other skeletons");
+
+        _skeletonData.Add(skeletonData);
+    }
+
+    public async Task GenerateVideo(string animationName, string outputPath, Codec codec)
+    {
+        if (Path.GetDirectoryName(outputPath) is var dir && !string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+        
+        var ok = await FFMpegArguments.FromPipeInput(
+                new RawVideoPipeSource(Frames(animationName))
+                {
+                    FrameRate = fps
+                })
+            .OutputToFile(outputPath, true, options => options.WithVideoCodec("libvpx-vp9"))
+            .ProcessAsynchronously();
+        if (!ok)
         {
-            var attachment = slot.Attachment;
-            if (attachment is null) continue;
+            // Delete output file
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
 
-            SKImage? texture;
-            AtlasRegion? region;
-            var worldVertices = new float[8];
-            float[] uvs;
-            int[] triangles;
-            Vector4 attachmentColor;
+            Console.WriteLine($"Failed to render animation {animationName}");
+            throw new Exception("Failed to render animation " + animationName);
+        }
+    }
 
-            if (attachment is RegionAttachment regionAttachment)
+    /// <summary>
+    /// Take the skeletons and return instances prepared for rendering.
+    /// </summary>
+    /// <returns></returns>
+    private Skeleton[] Skeletons()
+    {
+        var scale = DetermineScale();
+        return _skeletonData.Select(s =>
+        {
+            var skeleton = new Skeleton(s)
             {
-                region = (regionAttachment.RendererObject as AtlasRegion)!;
-                texture = region.page.rendererObject as SKImage;
-                uvs = regionAttachment.UVs;
-                attachmentColor = new Vector4(regionAttachment.R, regionAttachment.G, regionAttachment.B,
-                    regionAttachment.A);
-
-                regionAttachment.ComputeWorldVertices(slot.Bone, worldVertices, 0);
-                triangles = QuadTriangles;
-            }
-            else if (attachment is MeshAttachment meshAttachment)
-            {
-                region = (meshAttachment.RendererObject as AtlasRegion)!;
-                texture = region.page.rendererObject as SKImage;
-                uvs = meshAttachment.UVs;
-                if (worldVertices.Length < uvs.Length) worldVertices = new float[uvs.Length];
-                attachmentColor = new Vector4(meshAttachment.R, meshAttachment.G, meshAttachment.B, meshAttachment.A);
-
-                meshAttachment.ComputeWorldVertices(slot, worldVertices);
-                triangles = meshAttachment.Triangles;
-            }
-            else if (attachment is ClippingAttachment clippingAttachment)
-            {
-                clipper.ClipStart(slot, clippingAttachment);
-                continue;
-            }
-            else
-            {
-                throw new NotImplementedException(
-                    $"Attachment type {attachment.GetType().FullName} not supported yet.");
-            }
-
-            if (texture is null) continue;
-            if (lastTexture != texture)
-            {
-                lastTexture = texture;
-                paint.Shader = texture.ToShader();
-            }
-
-
-            if (clipper.IsClipping)
-            {
-                clipper.ClipTriangles(
-                    worldVertices,
-                    worldVertices.Length,
-                    triangles,
-                    triangles.Length,
-                    uvs
-                );
-                worldVertices = clipper.ClippedVertices.Items;
-                triangles = clipper.ClippedTriangles.Items;
-                uvs = clipper.ClippedUVs.Items;
-            }
-
-            var textureWidth = texture.Width;
-            var textureHeight = texture.Height;
-            List<SKPoint> vertices = [];
-            List<SKPoint> texturePoints = [];
-            List<SKColor> colors = [];
-            var indices = triangles.Select(x => (ushort)x).ToArray();
-
-            var color = new SKColorF(
-                skeleton.R * slot.R * attachmentColor.X,
-                skeleton.G * slot.G * attachmentColor.Y,
-                skeleton.B * slot.B * attachmentColor.Z,
-                skeleton.A * slot.A * attachmentColor.W
-            );
-
-            for (var i = 0; i < worldVertices.Length; i += 2)
-            {
-                vertices.Add(new SKPoint(worldVertices[i], worldVertices[i + 1]));
-                texturePoints.Add(new SKPoint(textureWidth * uvs[i], textureHeight * uvs[i + 1]));
-                colors.Add((SKColor)color);
-            }
-
-            // Determine and set correct blend mode
-            paint.BlendMode = slot.data.BlendMode switch
-            {
-                BlendMode.Screen => SKBlendMode.Screen,
-                BlendMode.Additive => SKBlendMode.Plus,
-                BlendMode.Multiply => SKBlendMode.Multiply,
-                _ => SKBlendMode.SrcOver
+                X = canvasSize.X / 2,
+                Y = canvasSize.Y / 2,
+                ScaleX = scale,
+                // PGR flips the Y axis
+                ScaleY = -scale
             };
 
-            canvas.DrawVertices(
-                SKVertexMode.Triangles,
-                vertices.ToArray(),
-                texturePoints.ToArray(),
-                colors.ToArray(),
-                SKBlendMode.Modulate,
-                indices,
-                paint
-            );
+            skeleton.UpdateWorldTransform();
+            return skeleton;
+        }).ToArray();
+    }
 
-            clipper.ClipEnd(slot);
+    /// <summary>
+    /// Generator for the frames of a specific animation.
+    /// Initializes the skeletons and updates them for each frame,
+    /// and then draws them onto a bitmap.
+    /// </summary>
+    /// <param name="animationName">Animation to use. Check <see cref="Animations"/> to see the options.</param>
+    /// <returns>Generator full of <see cref="BitmapVideoFrameWrapper"/>'s you can pass into FFMPEG</returns>
+    private IEnumerable<BitmapVideoFrameWrapper> Frames(string animationName)
+    {
+        var duration = 0f;
+        var skeletons = Skeletons();
+        var states = skeletons.Select(s =>
+        {
+            var state = new AnimationState(new AnimationStateData(s.data));
+            var animation = s.data.animations.Find(m => m.name == animationName);
+            state.SetAnimation(0, animation.name, false);
+            if (animation.Duration > duration)
+                duration = animation.Duration;
+            return state;
+        }).ToArray();
+
+        var frames = (int)Math.Ceiling(duration * fps);
+        var frameTime = 1.0f / fps;
+        
+        using var progress = new ProgressBar(frames, $"Rendering '{animationName}'", new ProgressBarOptions
+        {
+            ForegroundColor = ConsoleColor.White,
+            ForegroundColorDone = ConsoleColor.Green,
+            ForegroundColorError = ConsoleColor.Red,
+            ProgressBarOnBottom = true
+        });
+
+        for (var i = 0; i < frames; i++)
+        {
+            using var bitmap = new SKBitmap((int)canvasSize.X, (int)canvasSize.Y);
+            using var canvas = new SKCanvas(bitmap);
+
+            for (var j = 0; j < states.Length; j++)
+            {
+                var state = states[j];
+                state.Update(frameTime);
+                state.Apply(skeletons[j]);
+                skeletons[j].UpdateWorldTransform();
+                SpineDrawer.Draw(canvas, skeletons[j]);
+            }
+
+            yield return new BitmapVideoFrameWrapper(bitmap);
+            progress.Tick();
         }
+    }
 
-        clipper.ClipEnd();
-        canvas.Restore();
+    /// <summary>
+    ///     Calculates the scale to fit all skeletons into the canvas.
+    ///     Uses a similar approach to CSS 'contain: cover'
+    /// </summary>
+    /// <returns></returns>
+    private float DetermineScale()
+    {
+        var scale = 1 / _skeletonData
+            .Select(data => Math.Min(data.Width / 2 / canvasSize.X, data.Height / 2 / canvasSize.Y)).Max();
+        return (float)Math.Ceiling(scale * 100) / 100;
     }
 }
