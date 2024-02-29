@@ -47,7 +47,7 @@ public class Renderer(float fps, Vector2 canvasSize)
                 {
                     FrameRate = fps
                 })
-            .OutputToFile(outputPath, true, options => options.WithVideoCodec("libvpx-vp9"))
+            .OutputToFile(outputPath, true, options => options.WithVideoCodec(codec))
             .ProcessAsynchronously();
         if (!ok)
         {
