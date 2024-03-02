@@ -1,0 +1,32 @@
+name: release
+
+on: 
+  push:
+    tags: ['*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.x
+      - name: setup go
+        uses: https://github.com/actions/setup-go@v4
+        with:
+          go-version: '>=1.20.1'
+
+      - name: dotnet publish linux
+        run: dotnet publish -r linux-x64 -c Release -p:DebugType=none
+      - name: dotnet publish windows
+        run: dotnet publish -r win-x64 -c Release -p:DebugType=none
+
+
+      - name: Publish release
+        uses: https://gitea.com/actions/release-action@main
+        with:
+          files: |-
+            PgrSpineRenderer/bin/Release/net8.0/*-x64/publish/PgrSpineRenderer*
+          api_key: '${{secrets.RELEASE_TOKEN}}'
