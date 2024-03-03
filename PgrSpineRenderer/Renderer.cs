@@ -142,7 +142,7 @@ public class Renderer(float fps, Vector2 canvasSize)
     private float DetermineScale()
     {
         var scale = 1 / _skeletonData
-            .Select(data => Math.Min(data.Width / 2 / canvasSize.X, data.Height / 2 / canvasSize.Y)).Max();
+            .Select(data => Math.Min(Math.Abs(data.X) / canvasSize.X, Math.Abs(data.Y) / canvasSize.Y)).Max();
         return (float)Math.Ceiling(scale * 100) / 100;
     }
 }
