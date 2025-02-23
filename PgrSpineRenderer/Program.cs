@@ -30,16 +30,17 @@ internal static class Program
         Console.CancelKeyPress += (_, _) => Cts.Cancel();
 
         var rootCommand = new RootCommand("""
-                                          Renders the animations of the specified skeletons to webm videos.
-                                          Skeletons should be the path towards the .json and .atlas.txt files, without extension.
-                                          For example: 'luciyasairen' for 'luciyasairen.json' and 'luciyasairen.atlas.txt'
-
-                                          When multiple skeletons are specified, they will be rendered on top of each other.
-                                          The first skeleton will be the bottom layer, and the last one will be the top layer.
-                                          You can add as many skeletons as you want.
-
-                                          The output videos will be named after the animations contained within,
-                                          for example `idle.webm`.
+                                          Renders the animations of the specified index files to video.
+                                          Animations will be written to the `render` directory in the same directory as the index file,
+                                          with each animation being a separate video.
+                                          
+                                          A symbolic link to the default animation will be created as `_default.{ext}`,
+                                          allowing for easy access to the default animation without knowing the name.
+                                          
+                                          When multiple index files are specified, they will be rendered in parallel,
+                                          depending on the number of threads specified.
+                                          
+                                          By default the renderer will render to VP9 (webm) at 30fps.
                                           """);
         var fpsOption = new Option<float>("--fps", () => DefaultFps, "The frames per second of the output video");
         rootCommand.AddOption(fpsOption);
