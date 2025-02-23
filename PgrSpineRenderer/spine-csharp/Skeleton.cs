@@ -1,3 +1,5 @@
+#nullable disable
+
 #pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement

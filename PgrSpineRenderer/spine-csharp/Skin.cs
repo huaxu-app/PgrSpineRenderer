@@ -53,7 +53,7 @@ public class Skin
     }
 
     public string Name => name;
-    public OrderedDictionary<SkinEntry, Attachment> Attachments { get; } = new(SkinEntryComparer.Instance);
+    public Spine.Collections.OrderedDictionary<SkinEntry, Attachment> Attachments { get; } = new(SkinEntryComparer.Instance);
 
     public ExposedList<BoneData> Bones => bones;
     public ExposedList<ConstraintData> Constraints => constraints;

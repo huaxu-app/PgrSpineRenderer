@@ -1,23 +1,34 @@
 ﻿using System.CommandLine;
-using System.Numerics;
-using FFMpegCore;
-using FFMpegCore.Enums;
+using System.Diagnostics;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using PgrSpineRenderer.CodecHelper;
+using PgrSpineRenderer.Rendering;
+using ShellProgressBar;
+using SkiaSharp;
 
 namespace PgrSpineRenderer;
 
 internal static class Program
 {
-    private static readonly Dictionary<CodecOption, (Codec codec, string extension)> Codecs = new()
+    private static readonly Dictionary<CodecOption, IRenderCodec> Codecs = new()
     {
-        {CodecOption.VP9, (FFMpeg.GetCodec("libvpx-vp9"), "webm")},
-        {CodecOption.H264, (VideoCodec.LibX264, "mp4")},
+        { CodecOption.VP9, new VP9() },
+        { CodecOption.H264, new H264() },
+        { CodecOption.H264NV, new H264NV() }
     };
-    
-    private const float DefaultFps = 30.0f;
-    private static readonly Vector2 DefaultCanvasSize = new(1920, 1080);
 
-    public static async Task<int> Main(string[] args)
+    private const float DefaultFps = 30.0f;
+    
+    private static readonly CancellationTokenSource Cts = new();
+
+    public static int Main(string[] args)
     {
+        Console.CancelKeyPress += (_, _) => Cts.Cancel();
+
         var rootCommand = new RootCommand("""
                                           Renders the animations of the specified skeletons to webm videos.
                                           Skeletons should be the path towards the .json and .atlas.txt files, without extension.
@@ -26,29 +37,33 @@ internal static class Program
                                           When multiple skeletons are specified, they will be rendered on top of each other.
                                           The first skeleton will be the bottom layer, and the last one will be the top layer.
                                           You can add as many skeletons as you want.
-                                          
+
                                           The output videos will be named after the animations contained within,
                                           for example `idle.webm`.
                                           """);
         var fpsOption = new Option<float>("--fps", () => DefaultFps, "The frames per second of the output video");
         rootCommand.AddOption(fpsOption);
 
-        var widthOption = new Option<int>("--width", () => (int)DefaultCanvasSize.X, "The width of the output video");
-        widthOption.AddAlias("-w");
-        rootCommand.AddOption(widthOption);
-        var heightOption = new Option<int>("--height", () => (int)DefaultCanvasSize.Y, "The height of the output video");
-        heightOption.AddAlias("-h");
-        rootCommand.AddOption(heightOption);
-        
-        var outputDirOption = new Option<string>("--output-dir", () => "", "The directory where the output videos will be saved. Defaults to the current directory");
-        outputDirOption.AddAlias("-o");
-        rootCommand.AddOption(outputDirOption);
-        
-        var codecOption = new Option<CodecOption>("--codec", () => CodecOption.VP9, "The codec to use for the output videos. Defaults to 'vp9'");
+        var codecOption = new Option<CodecOption>("--codec", () => CodecOption.VP9,
+            "The codec to use for the output videos. Defaults to 'vp9'");
         codecOption.AddAlias("-c");
         rootCommand.AddOption(codecOption);
         
-        var skeletonArguments = new Argument<string[]>("skeletons", (result) =>
+        var encodeThreadsOption = new Option<int>("--encode-threads", () => 1,
+            "The number of threads to use for encoding. Might be capped by hardware limits (nvenc)");
+        encodeThreadsOption.AddAlias("--et");
+        rootCommand.AddOption(encodeThreadsOption);
+        
+        var renderThreadsOption = new Option<int>("--render-threads", () => 1,
+            "The number of threads to use for rendering");
+        renderThreadsOption.AddAlias("--rt");
+        rootCommand.AddOption(renderThreadsOption);
+
+        var forceOption = new Option<bool>("--force", "Force rendering even if the index file has not changed");
+        forceOption.AddAlias("-f");
+        rootCommand.AddOption(forceOption);
+
+        var indexArgument = new Argument<FileInfo[]>("indexes", (result) =>
         {
             if (result.Tokens.Count == 0)
             {
@@ -56,47 +71,166 @@ internal static class Program
                 return [];
             }
 
+            var files = new List<FileInfo>();
             foreach (var token in result.Tokens)
             {
-                if (!token.Value.StartsWith('-')) continue; 
-                // Option
-                result.ErrorMessage = $"Invalid option: {token.Value}";
-                return [];
+                if (!File.Exists(token.Value))
+                {
+                    result.ErrorMessage = $"File not found: {token.Value}";
+                    continue;
+                }
+
+                files.Add(new FileInfo(token.Value));
             }
 
-            return result.Tokens.Select(t => t.Value).ToArray();
-        }, description: "The skeletons to render")
+            if (files.Count == 0)
+                result.ErrorMessage = "No valid files found";
+
+            return files.ToArray();
+        }, description: "The index files for the spines to render")
         {
             Arity = ArgumentArity.OneOrMore
         };
-        rootCommand.AddArgument(skeletonArguments);
-        rootCommand.SetHandler(Handler, skeletonArguments, fpsOption, widthOption, heightOption, outputDirOption, codecOption);
-        
-        return await rootCommand.InvokeAsync(args);
+        rootCommand.AddArgument(indexArgument);
+        rootCommand.SetHandler(Handler, indexArgument, fpsOption, codecOption,
+            forceOption, encodeThreadsOption, renderThreadsOption);
+
+        return rootCommand.Invoke(args);
     }
-    
-    private static async Task Handler(string[] skeletons, float fps, int width, int height, string outputDir, CodecOption codecOption)
+
+
+    private static async Task Handler(FileInfo[] indexFiles, float fps, CodecOption codecOption, bool forceOption, int encodeThreads, int renderThreads)
     {
-        var render = new Renderer(fps, new Vector2(width, height));
-        foreach (var skeleton in skeletons)
-            render.AddSkeleton(skeleton);
-        
-        var baseName = Path.GetFileNameWithoutExtension(skeletons[0]);
-        var (codec, extension) = Codecs[codecOption];
-        
-        foreach (var animation in render.Animations)
+        var codec = Codecs[codecOption];
+
+        using var renderer = GetRenderer(renderThreads);
+
+        Console.WriteLine("Beginning render");
+        await Parallel.ForEachAsync(indexFiles,
+            new ParallelOptions { MaxDegreeOfParallelism = encodeThreads, CancellationToken = Cts.Token },
+            async (indexFile, token) =>
+            {
+                var job = new RenderJob(indexFile, codec, renderer) { Fps = fps, Force = forceOption };
+                await HandleIndex(job, token);
+            });
+    }
+
+    private static Renderer GetRenderer(int threads)
+    {
+        var contexts = new IGLFWGraphicsContext[threads];
+        // Create RenderThread amount of windows
+        for (var i = 0; i < threads; i++)
         {
-            var outputPath = Path.Combine(outputDir, $"{baseName}_{animation}.{extension}");
-            await render.GenerateVideo(animation, outputPath, codec);
+            var window = new NativeWindow(new NativeWindowSettings
+            {
+                StartVisible = false,
+                StartFocused = false,
+                Flags = ContextFlags.Offscreen,
+                Title = $"PgrSpineRenderer{i}"
+            });
+            window.Context.MakeNoneCurrent();
+            contexts[i] = window.Context;
         }
         
-        Console.WriteLine("All animations rendered successfully");
+        return new Renderer(contexts);
+    }
+
+    private static async Task HandleIndex(RenderJob job,
+        CancellationToken token = default)
+    {
+        if (!await job.ShouldRender()) return;
+
+        var index = await JsonSerializer.DeserializeAsync(job.Index.OpenRead(), SerializerContext.Default.Index, token);
+        if (index is null)
+        {
+            return;
+        }
+
+        var render = new SpineRenderer(job.Renderer, job.Fps, index.Size,
+            new SpineRenderer.RendererSettings { Quirk = index.RenderQuirk });
+        foreach (var skeleton in index.Spines)
+            render.AddSkeleton(skeleton, job.IndexDir);
+        foreach (var follower in index.BoneFollowers)
+            render.AddBoneFollower(follower);
+
+        var ok = true;
+        foreach (var animation in render.Animations)
+        {
+            var outputPath = Path.Combine(job.OutputPath, $"{animation}.{job.Codec.Extension}");
+            try
+            {
+                var sw = Stopwatch.StartNew();
+                await render.GenerateVideo(animation, outputPath, job.Codec, token);
+                Console.WriteLine($"Rendered {index.Name} - {animation} in {sw.ElapsedMilliseconds / 1000}s");
+            }
+            catch (Exception e)
+            {
+                await Console.Error.WriteLineAsync($"Failed to render {index.Name} - {animation}: {e.Message}");
+                ok = false;
+            }
+
+        }
+
+        if (ok)
+        {
+            var defaultAnimation = index.DefaultAnimation
+                                   ?? render.Animations.Find(e => e == "idle")
+                                   ?? render.Animations.First();
+            var defaultPath = Path.Combine(job.OutputPath, $"_default.{job.Codec.Extension}");
+
+            if (File.Exists(defaultPath))
+                File.Delete(defaultPath);
+            File.CreateSymbolicLink(defaultPath, $"{defaultAnimation}.{job.Codec.Extension}");
+
+            await job.WriteSha256();
+        }
+    }
+
+    private struct RenderJob(
+        FileInfo index,
+        IRenderCodec codec,
+        IFrameRenderer renderer)
+    {
+        public readonly FileInfo Index = index;
+        public float Fps = 30;
+        public readonly IRenderCodec Codec = codec;
+        public readonly IFrameRenderer Renderer = renderer;
+        public bool Force = false;
+
+        public string IndexDir => Path.GetRelativePath(Environment.CurrentDirectory, Index.DirectoryName ?? "");
+        public string OutputPath => Path.Combine(IndexDir, "render");
+
+        private string ShaPath => Path.Join(OutputPath, $"{Codec.HashName}.sha256");
+
+        private string? _sha256;
+        private string Sha256 => _sha256 ??= ComputeSha256Hash();
+
+        private string ComputeSha256Hash()
+        {
+            using var sha256 = SHA256.Create();
+            using var fileStream = File.OpenRead(Index.FullName);
+            var hashBytes = sha256.ComputeHash(fileStream);
+            return Convert.ToHexStringLower(hashBytes);
+        }
+
+        public async Task<bool> ShouldRender()
+        {
+            if (!File.Exists(ShaPath) || Force) return true;
+
+            var oldSha256 = await File.ReadAllTextAsync(ShaPath);
+            return Sha256 != oldSha256;
+        }
+
+        public async Task WriteSha256()
+        {
+            await File.WriteAllTextAsync(ShaPath, Sha256);
+        }
     }
 
     private enum CodecOption
     {
         VP9,
-        H264
+        H264,
+        H264NV
     }
-    
 }

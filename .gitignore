@@ -3,6 +3,9 @@
 *.png
 *.json
 *.atlas.txt
+*.atlas 
+*.skel
+*.sha256
 
 bin/
 obj/
@@ -10,3 +13,4 @@ obj/
 riderModule.iml
 /_ReSharper.Caches/
 *.DotSettings.user
+.aider*

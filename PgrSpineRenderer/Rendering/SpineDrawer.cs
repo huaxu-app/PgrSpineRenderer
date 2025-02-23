@@ -1,20 +1,37 @@
+using System.Diagnostics;
 using System.Numerics;
 using SkiaSharp;
 using Spine;
 
-namespace PgrSpineRenderer;
+namespace PgrSpineRenderer.Rendering;
 
 public static class SpineDrawer
 {
     private static readonly int[] QuadTriangles = [0, 1, 2, 2, 3, 0];
+    
+    public static SkiaFrame DrawJob(SKSurface surface, Skeleton[] skeletons)
+    {
+        Metrics.FramesRendered.Add(1);
+        var stopwatch = Stopwatch.StartNew();
+        foreach (var s in skeletons)
+        {
+            Draw(surface.Canvas, s);
+        }
+        surface.Flush();
+        var image = surface.Snapshot();
+        var frame = new SkiaFrame(SKBitmap.FromImage(image));
+        image.Dispose();
+        Metrics.FrameDrawTime.Record(stopwatch.ElapsedMilliseconds);
+        return frame;
+    }
 
-    public static void Draw(SKCanvas canvas, Skeleton skeleton)
+    private static void Draw(SKCanvas canvas, Skeleton skeleton)
     {
         SKImage? lastTexture = null;
         var clipper = new SkeletonClipping();
         var paint = new SKPaint
         {
-            FilterQuality = SKFilterQuality.High
+            IsAntialias = true,
         };
         canvas.Save();
 
@@ -79,9 +96,9 @@ public static class SpineDrawer
                     triangles.Length,
                     uvs
                 );
-                worldVertices = clipper.ClippedVertices.Items;
-                triangles = clipper.ClippedTriangles.Items;
-                uvs = clipper.ClippedUVs.Items;
+                worldVertices = clipper.ClippedVertices.ToArray();
+                triangles = clipper.ClippedTriangles.ToArray();
+                uvs = clipper.ClippedUVs.ToArray();
             }
 
             var textureWidth = texture.Width;
@@ -98,7 +115,7 @@ public static class SpineDrawer
                 skeleton.A * slot.A * attachmentColor.W
             );
 
-            for (var i = 0; i < worldVertices.Length; i += 2)
+            for (var i = 0; i < Math.Min(worldVertices.Length, uvs.Length); i += 2)
             {
                 vertices.Add(new SKPoint(worldVertices[i], worldVertices[i + 1]));
                 texturePoints.Add(new SKPoint(textureWidth * uvs[i], textureHeight * uvs[i + 1]));
@@ -114,15 +131,10 @@ public static class SpineDrawer
                 _ => SKBlendMode.SrcOver
             };
 
-            canvas.DrawVertices(
-                SKVertexMode.Triangles,
-                vertices.ToArray(),
-                texturePoints.ToArray(),
-                colors.ToArray(),
-                SKBlendMode.Modulate,
-                indices,
-                paint
-            );
+            
+			var vert = SKVertices.CreateCopy(SKVertexMode.Triangles, vertices.ToArray(), texturePoints.ToArray(), colors.ToArray(), indices);
+            canvas.DrawVertices(vert, SKBlendMode.Modulate, paint);
+            vert.Dispose();
 
             clipper.ClipEnd(slot);
         }
