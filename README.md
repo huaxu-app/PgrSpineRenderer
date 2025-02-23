@@ -31,7 +31,7 @@ Description:
   By default the renderer will render to VP9 (webm) at 30fps.
 
 Usage:
-  PgrSpineRenderer-mt <indexes>... [options]
+  PgrSpineRenderer <indexes>... [options]
 
 Arguments:
   <indexes>  The index files for the spines to render
