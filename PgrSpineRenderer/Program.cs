@@ -63,6 +63,10 @@ internal static class Program
         var forceOption = new Option<bool>("--force", "Force rendering even if the index file has not changed");
         forceOption.AddAlias("-f");
         rootCommand.AddOption(forceOption);
+        
+        var linkDefaultOption = new Option<bool>("--link-default", "Create symlink for default animation");
+        linkDefaultOption.AddAlias("-l");
+        rootCommand.AddOption(linkDefaultOption);
 
         var indexArgument = new Argument<FileInfo[]>("indexes", (result) =>
         {
@@ -94,13 +98,13 @@ internal static class Program
         };
         rootCommand.AddArgument(indexArgument);
         rootCommand.SetHandler(Handler, indexArgument, fpsOption, codecOption,
-            forceOption, encodeThreadsOption, renderThreadsOption);
+            forceOption, encodeThreadsOption, renderThreadsOption, linkDefaultOption);
 
         return rootCommand.Invoke(args);
     }
 
 
-    private static async Task Handler(FileInfo[] indexFiles, float fps, CodecOption codecOption, bool forceOption, int encodeThreads, int renderThreads)
+    private static async Task Handler(FileInfo[] indexFiles, float fps, CodecOption codecOption, bool forceOption, int encodeThreads, int renderThreads, bool linkDefaultAnimation)
     {
         var codec = Codecs[codecOption];
 
@@ -111,7 +115,7 @@ internal static class Program
             new ParallelOptions { MaxDegreeOfParallelism = encodeThreads, CancellationToken = Cts.Token },
             async (indexFile, token) =>
             {
-                var job = new RenderJob(indexFile, codec, renderer) { Fps = fps, Force = forceOption };
+                var job = new RenderJob(indexFile, codec, renderer) { Fps = fps, Force = forceOption, LinkDefaultAnimation = linkDefaultAnimation };
                 await HandleIndex(job, token);
             });
     }
@@ -171,8 +175,8 @@ internal static class Program
             }
 
         }
-
-        if (ok)
+        
+        if (job.LinkDefaultAnimation)
         {
             var defaultAnimation = index.DefaultAnimation
                                    ?? render.Animations.Find(e => e == "idle")
@@ -182,7 +186,10 @@ internal static class Program
             if (File.Exists(defaultPath))
                 File.Delete(defaultPath);
             File.CreateSymbolicLink(defaultPath, $"{defaultAnimation}.{job.Codec.Extension}");
-
+        }
+        
+        if (ok)
+        {
             await job.WriteSha256();
         }
     }
@@ -197,6 +204,7 @@ internal static class Program
         public readonly IRenderCodec Codec = codec;
         public readonly IFrameRenderer Renderer = renderer;
         public bool Force = false;
+        public bool LinkDefaultAnimation = false;
 
         public string IndexDir => Path.GetRelativePath(Environment.CurrentDirectory, Index.DirectoryName ?? "");
         public string OutputPath => Path.Combine(IndexDir, "render");
