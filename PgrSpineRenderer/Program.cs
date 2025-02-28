@@ -18,7 +18,8 @@ internal static class Program
     {
         { CodecOption.VP9, new VP9() },
         { CodecOption.H264, new H264() },
-        { CodecOption.H264NV, new H264NV() }
+        { CodecOption.H264NV, new H264NV() },
+        { CodecOption.Mov, new Mov() }
     };
 
     private const float DefaultFps = 30.0f;
@@ -240,6 +241,7 @@ internal static class Program
     {
         VP9,
         H264,
-        H264NV
+        H264NV,
+        Mov
     }
 }
