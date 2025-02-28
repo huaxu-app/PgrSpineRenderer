@@ -46,7 +46,7 @@ public class SpineRenderer
             ? new SkeletonBinary(atlas).ReadSkeletonData(rawPath)
             : new SkeletonJson(atlas).ReadSkeletonData($"{path}.json");
 
-        var anims = skeletonData.Animations.Select(a => a.Name); // No animations yet? Add them
+        var anims = skeletonData.Animations.Select(a => a.Name).Where(n => n.Length > 1); // No animations yet? Add them
         Animations = Animations.Count == 0
             ? anims.ToList()
             : Animations.Intersect(anims).ToList();
