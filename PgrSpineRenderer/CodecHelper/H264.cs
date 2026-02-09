@@ -9,7 +9,7 @@ public class H264 : IRenderCodec
 {
     public string HashName => "h264";
     public string Extension => "mp4";
-    
+
     public void Apply(FFMpegArgumentOptions options, Vector2 size)
     {
         options

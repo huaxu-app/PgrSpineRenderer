@@ -18,7 +18,7 @@ public class H264NV : IRenderCodec
             Console.Error.WriteLine("Resolution is too high for NVENC, falling back to libx264");
             codec = "libx264";
         }
-        
+
         options
             .WithVideoCodec(codec)
             .WithConstantRateFactor(23)

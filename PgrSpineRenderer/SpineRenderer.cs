@@ -13,6 +13,8 @@ public class SpineRenderer
 {
     private readonly List<(Entry entry, SkeletonData data)> _skeletonData = [];
     private readonly List<BoneTrackerInfo> _boneFollowers = [];
+    private readonly AnimationSet _animationSet = new();
+    public List<string> Animations => _animationSet.GetRenderSet();
 
     private readonly IFrameRenderer _frameRenderer;
     private readonly Vector2 _canvasSize;
@@ -27,8 +29,6 @@ public class SpineRenderer
         _canvasSize = (canvasSize ?? new Vector2(1920, 1080)) * settings.Scale;
         if (settings.Quirk is not null) Console.WriteLine("Using render quirk " + settings.Quirk);
     }
-
-    public List<string> Animations { get; private set; } = [];
 
     /// <summary>
     ///     Add a skeleton to the renderer. Takes a *partial* path to the skeleton files, without extension.
@@ -46,11 +46,7 @@ public class SpineRenderer
             ? new SkeletonBinary(atlas).ReadSkeletonData(rawPath)
             : new SkeletonJson(atlas).ReadSkeletonData($"{path}.json");
 
-        var anims = skeletonData.Animations.Select(a => a.Name).Where(n => n.Length > 1); // No animations yet? Add them
-        Animations = Animations.Count == 0
-            ? anims.ToList()
-            : Animations.Intersect(anims).ToList();
-
+        _animationSet.RegisterLayer(skeletonData.animations.Select(a => a.Name));
         _skeletonData.Add((skeleton, skeletonData));
     }
 
@@ -110,7 +106,7 @@ public class SpineRenderer
         }
         catch (Exception e)
         {
-            await Console.Error.WriteLineAsync("Failed to generate frames: " + e.Message);
+            await Console.Error.WriteLineAsync("Failed to generate frames: " + e);
         }
         finally
         {
@@ -166,7 +162,9 @@ public class SpineRenderer
         var states = skeletons.Select(s =>
         {
             var state = new AnimationState(new AnimationStateData(s.data));
-            var animation = s.data.animations.Find(m => m.name == animationName);
+            var layerAnimationName = _animationSet.Resolve(s.data.animations.Select(m => m.name), animationName);
+            
+            var animation = s.data.animations.Find(m => m.name == layerAnimationName);
             state.SetAnimation(0, animation.name, true);
 
             if (duration == 0)
@@ -214,7 +212,7 @@ public class SpineRenderer
                 {
                     skeleton.X += follower.Offset.X;
                     skeleton.Y += follower.Offset.Y;
-                };
+                }
                 
                 skeleton.UpdateWorldTransform();
             }

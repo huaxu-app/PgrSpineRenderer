@@ -4,7 +4,8 @@ using System.Text.Json.Serialization;
 
 namespace PgrSpineRenderer;
 
-[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, Converters = [typeof(Vector2Converter)])]
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    Converters = [typeof(Vector2Converter)])]
 [JsonSerializable(typeof(Index.Index))]
 internal sealed partial class SerializerContext : JsonSerializerContext
 {
@@ -18,10 +19,10 @@ internal sealed class Vector2Converter : JsonConverter<Vector2>
             throw new JsonException("Expected start of array.");
 
         reader.Read();
-        float x = reader.GetSingle();
+        var x = reader.GetSingle();
 
         reader.Read();
-        float y = reader.GetSingle();
+        var y = reader.GetSingle();
 
         reader.Read();
         if (reader.TokenType != JsonTokenType.EndArray)

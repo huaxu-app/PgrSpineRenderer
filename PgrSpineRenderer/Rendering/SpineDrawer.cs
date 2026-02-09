@@ -8,15 +8,12 @@ namespace PgrSpineRenderer.Rendering;
 public static class SpineDrawer
 {
     private static readonly int[] QuadTriangles = [0, 1, 2, 2, 3, 0];
-    
+
     public static SkiaFrame DrawJob(SKSurface surface, Skeleton[] skeletons)
     {
         Metrics.FramesRendered.Add(1);
         var stopwatch = Stopwatch.StartNew();
-        foreach (var s in skeletons)
-        {
-            Draw(surface.Canvas, s);
-        }
+        foreach (var s in skeletons) Draw(surface.Canvas, s);
         surface.Flush();
         var image = surface.Snapshot();
         var frame = new SkiaFrame(SKBitmap.FromImage(image));
@@ -31,7 +28,7 @@ public static class SpineDrawer
         var clipper = new SkeletonClipping();
         var paint = new SKPaint
         {
-            IsAntialias = true,
+            IsAntialias = true
         };
         canvas.Save();
 
@@ -131,8 +128,9 @@ public static class SpineDrawer
                 _ => SKBlendMode.SrcOver
             };
 
-            
-			var vert = SKVertices.CreateCopy(SKVertexMode.Triangles, vertices.ToArray(), texturePoints.ToArray(), colors.ToArray(), indices);
+
+            var vert = SKVertices.CreateCopy(SKVertexMode.Triangles, vertices.ToArray(), texturePoints.ToArray(),
+                colors.ToArray(), indices);
             canvas.DrawVertices(vert, SKBlendMode.Modulate, paint);
             vert.Dispose();
 

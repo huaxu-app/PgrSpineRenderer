@@ -18,14 +18,14 @@ public class VP9 : IRenderCodec
         var bitrate = 1800;
         var minrate = 900;
         var maxrate = 2610;
-        
+
         if (size.X < 1280 || size.Y < 720)
         {
             bitrate = 1024;
             minrate = 512;
             maxrate = 1485;
         }
-        
+
         options
             .WithVideoCodec("vp9")
             .ForcePixelFormat("yuva420p")
