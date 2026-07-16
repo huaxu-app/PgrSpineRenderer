@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,96 +27,76 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+using System;
 
-/// <summary>
-///     An AttachmentLoader that configures attachments using texture regions from an Atlas.
-///     See
-///     <a href='http://esotericsoftware.com/spine-loading-skeleton-data#JSON-and-binary-data'>Loading Skeleton Data</a> in
-///     the Spine Runtimes Guide.
-/// </summary>
-public class AtlasAttachmentLoader : AttachmentLoader
-{
-    private readonly Atlas[] atlasArray;
+namespace Spine {
 
-    public AtlasAttachmentLoader(params Atlas[] atlasArray)
-    {
-        if (atlasArray == null) throw new ArgumentNullException("atlas array cannot be null.");
-        this.atlasArray = atlasArray;
-    }
+	/// <summary>
+	/// An <see cref="AttachmentLoader"/> that configures attachments using texture regions from an <see cref="Atlas"/>.
+	/// See <a href='http://esotericsoftware.com/spine-loading-skeleton-data#JSON-and-binary-data'>Loading Skeleton Data</a> in the Spine Runtimes Guide.
+	/// </summary>
+	public class AtlasAttachmentLoader : AttachmentLoader {
+		private Atlas[] atlasArray;
+		/// <summary>If true, <see cref="FindRegion(string, string)"/> may return null. If false, an error is raised if the texture region is not
+		/// found. Default is false.</summary>
+		public bool allowMissingRegions;
 
-    public RegionAttachment NewRegionAttachment(Skin skin, string name, string path)
-    {
-        var region = FindRegion(path);
-        if (region == null)
-            throw new ArgumentException(string.Format("Region not found in atlas: {0} (region attachment: {1})", path,
-                name));
-        var attachment = new RegionAttachment(name);
-        attachment.RendererObject = region;
-        attachment.SetUVs(region.u, region.v, region.u2, region.v2, region.rotate);
-        attachment.regionOffsetX = region.offsetX;
-        attachment.regionOffsetY = region.offsetY;
-        attachment.regionWidth = region.width;
-        attachment.regionHeight = region.height;
-        attachment.regionOriginalWidth = region.originalWidth;
-        attachment.regionOriginalHeight = region.originalHeight;
-        return attachment;
-    }
+		public AtlasAttachmentLoader (params Atlas[] atlasArray)
+			: this(false, atlasArray) {
+		}
 
-    public MeshAttachment NewMeshAttachment(Skin skin, string name, string path)
-    {
-        var region = FindRegion(path);
-        if (region == null)
-            throw new ArgumentException(string.Format("Region not found in atlas: {0} (region attachment: {1})", path,
-                name));
-        var attachment = new MeshAttachment(name);
-        attachment.RendererObject = region;
-        attachment.RegionU = region.u;
-        attachment.RegionV = region.v;
-        attachment.RegionU2 = region.u2;
-        attachment.RegionV2 = region.v2;
-        attachment.RegionRotate = region.rotate;
-        attachment.RegionDegrees = region.degrees;
-        attachment.regionOffsetX = region.offsetX;
-        attachment.regionOffsetY = region.offsetY;
-        attachment.regionWidth = region.width;
-        attachment.regionHeight = region.height;
-        attachment.regionOriginalWidth = region.originalWidth;
-        attachment.regionOriginalHeight = region.originalHeight;
-        return attachment;
-    }
+		public AtlasAttachmentLoader (bool allowMissingRegions, params Atlas[] atlasArray) {
+			if (atlasArray == null) throw new ArgumentNullException("atlas", "atlas array cannot be null.");
+			this.atlasArray = atlasArray;
+			this.allowMissingRegions = allowMissingRegions;
+		}
 
-    public BoundingBoxAttachment NewBoundingBoxAttachment(Skin skin, string name)
-    {
-        return new BoundingBoxAttachment(name);
-    }
+		/// <summary>Sets each <see cref="Sequence.Regions"/> by calling <see cref="FindRegion(string, string)"/> for each texture region using
+		/// <see cref="Sequence.GetPath(string, int)"/>.</summary>
+		protected void FindRegions (string name, string basePath, Sequence sequence) {
+			TextureRegion[] regions = sequence.Regions;
+			for (int i = 0, n = regions.Length; i < n; i++) {
+				regions[i] = FindRegion(name, sequence.GetPath(basePath, i));
+			}
+		}
 
-    public PathAttachment NewPathAttachment(Skin skin, string name)
-    {
-        return new PathAttachment(name);
-    }
+		/// <summary>Looks for the region with the specified path. If not found and <see cref="allowMissingRegions"/> is false, an error is
+		/// raised.</summary>
+		protected AtlasRegion FindRegion (string name, string path) {
+			for (int i = 0; i < atlasArray.Length; i++) {
+				AtlasRegion region = atlasArray[i].FindRegion(path);
+				if (region != null)
+					return region;
+			}
+			if (!allowMissingRegions)
+				throw new ArgumentException(string.Format("Region not found in atlas: {0} (attachment: {1})", path, name));
+			return null;
+		}
 
-    public PointAttachment NewPointAttachment(Skin skin, string name)
-    {
-        return new PointAttachment(name);
-    }
+		public RegionAttachment NewRegionAttachment (Skin skin, string placeholder, string name, string path, Sequence sequence) {
+			FindRegions(name, path, sequence);
+			return new RegionAttachment(name, sequence);
+		}
 
-    public ClippingAttachment NewClippingAttachment(Skin skin, string name)
-    {
-        return new ClippingAttachment(name);
-    }
+		public MeshAttachment NewMeshAttachment (Skin skin, string placeholder, string name, string path, Sequence sequence) {
+			FindRegions(name, path, sequence);
+			return new MeshAttachment(name, sequence);
+		}
 
-    public AtlasRegion FindRegion(string name)
-    {
-        AtlasRegion region;
+		public BoundingBoxAttachment NewBoundingBoxAttachment (Skin skin, string placeholder, string name) {
+			return new BoundingBoxAttachment(name);
+		}
 
-        for (var i = 0; i < atlasArray.Length; i++)
-        {
-            region = atlasArray[i].FindRegion(name);
-            if (region != null)
-                return region;
-        }
+		public PathAttachment NewPathAttachment (Skin skin, string placeholder, string name) {
+			return new PathAttachment(name);
+		}
 
-        return null;
-    }
+		public PointAttachment NewPointAttachment (Skin skin, string placeholder, string name) {
+			return new PointAttachment(name);
+		}
+
+		public ClippingAttachment NewClippingAttachment (Skin skin, string placeholder, string name) {
+			return new ClippingAttachment(name);
+		}
+	}
 }

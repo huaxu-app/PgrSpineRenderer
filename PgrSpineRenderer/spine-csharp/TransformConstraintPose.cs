@@ -30,49 +30,35 @@
 using System;
 
 namespace Spine {
+	using FromProperty = TransformConstraintData.FromProperty;
+	using ToProperty = TransformConstraintData.ToProperty;
+
 	/// <summary>
-	/// An attachment which is a single point and a rotation. This can be used to spawn projectiles, particles, etc. A bone can be
-	/// used in similar ways, but a PointAttachment is slightly less expensive to compute and can be hidden, shown, and placed in a
-	/// skin.
-	/// <p>
-	/// See <a href="https://esotericsoftware.com/spine-points">Point Attachments</a> in the Spine User Guide.
+	/// Stores a pose for a transform constraint.
 	/// </summary>
-	public class PointAttachment : Attachment {
-		internal float x, y, rotation;
-		/// <summary>The local x position.</summary>
-		public float X { get { return x; } set { x = value; } }
-		/// <summary>The local y position.</summary>
-		public float Y { get { return y; } set { y = value; } }
-		/// <summary>The local rotation in degrees, counter clockwise.</summary>
-		public float Rotation { get { return rotation; } set { rotation = value; } }
+	public class TransformConstraintPose : IPose<TransformConstraintPose> {
+		internal float mixRotate, mixX, mixY, mixScaleX, mixScaleY, mixShearY;
 
-		public PointAttachment (string name)
-			: base(name) {
+		public void Set (TransformConstraintPose pose) {
+			mixRotate = pose.mixRotate;
+			mixX = pose.mixX;
+			mixY = pose.mixY;
+			mixScaleX = pose.mixScaleX;
+			mixScaleY = pose.mixScaleY;
+			mixShearY = pose.mixShearY;
 		}
 
-		/// <summary>Copy constructor.</summary>
-		protected PointAttachment (PointAttachment other)
-			: base(other) {
-			x = other.x;
-			y = other.y;
-			rotation = other.rotation;
-		}
-
-		/// <summary>Computes the world position from the local position.</summary>
-		public void ComputeWorldPosition (BonePose bone, out float ox, out float oy) {
-			bone.LocalToWorld(this.x, this.y, out ox, out oy);
-		}
-
-		/// <summary>Computes the world rotation from the local rotation.</summary>
-		public float ComputeWorldRotation (BonePose bone) {
-			float r = rotation * MathUtils.DegRad, cos = (float)Math.Cos(r), sin = (float)Math.Sin(r);
-			float x = cos * bone.a + sin * bone.b;
-			float y = cos * bone.c + sin * bone.d;
-			return MathUtils.Atan2Deg(y, x);
-		}
-
-		public override Attachment Copy () {
-			return new PointAttachment(this);
-		}
+		/// <summary>A percentage (unbounded) that controls the mix between the constrained and unconstrained rotation.</summary>
+		public float MixRotate { get { return mixRotate; } set { mixRotate = value; } }
+		/// <summary>A percentage (unbounded) that controls the mix between the constrained and unconstrained translation X.</summary>
+		public float MixX { get { return mixX; } set { mixX = value; } }
+		/// <summary>A percentage (unbounded) that controls the mix between the constrained and unconstrained translation Y.</summary>
+		public float MixY { get { return mixY; } set { mixY = value; } }
+		/// <summary>A percentage (unbounded) that controls the mix between the constrained and unconstrained scale X.</summary>
+		public float MixScaleX { get { return mixScaleX; } set { mixScaleX = value; } }
+		/// <summary>A percentage (unbounded) that controls the mix between the constrained and unconstrained scale Y.</summary>
+		public float MixScaleY { get { return mixScaleY; } set { mixScaleY = value; } }
+		/// <summary>A percentage (unbounded) that controls the mix between the constrained and unconstrained shear Y.</summary>
+		public float MixShearY { get { return mixShearY; } set { mixShearY = value; } }
 	}
 }

@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,256 +27,67 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+#if UNITY_5_3_OR_NEWER
+#define IS_UNITY
+#endif
 
-/// <summary>
-///     Stores a slot's current pose. Slots organize attachments for {@link Skeleton#drawOrder} purposes and provide a
-///     place to store
-///     state for an attachment.State cannot be stored in an attachment itself because attachments are stateless and may be
-///     shared
-///     across multiple skeletons.
-/// </summary>
-public class Slot
-{
-    internal Attachment attachment;
-    internal int attachmentState;
-    internal float attachmentTime;
-    internal Bone bone;
-    internal SlotData data;
-    internal ExposedList<float> deform = new();
-    internal bool hasSecondColor;
-    internal float r, g, b, a;
-    internal float r2, g2, b2;
+using System;
 
-    public Slot(SlotData data, Bone bone)
-    {
-        if (data == null) throw new ArgumentNullException("data", "data cannot be null.");
-        if (bone == null) throw new ArgumentNullException("bone", "bone cannot be null.");
-        this.data = data;
-        this.bone = bone;
+namespace Spine {
+#if IS_UNITY
+	using Color32F = UnityEngine.Color;
+#endif
 
-        // darkColor = data.darkColor == null ? null : new Color();
-        if (data.hasSecondColor) r2 = g2 = b2 = 0;
+	/// <summary>Organizes attachments for <see cref="Skeleton.DrawOrder"/> purposes and provides a place to store state for an
+	/// attachment.
+	/// <para>
+	/// State cannot be stored in an attachment itself because attachments are stateless and may be shared across multiple
+	/// skeletons.</para></summary>
+	public class Slot : Posed<SlotData, SlotPose> {
+		internal readonly Skeleton skeleton;
+		internal readonly Bone bone;
+		internal int attachmentState;
 
-        SetToSetupPose();
-    }
+		public Slot (SlotData data, Skeleton skeleton)
+			: base(data, new SlotPose(), new SlotPose()) {
+			if (skeleton == null) throw new ArgumentNullException("skeleton", "skeleton cannot be null.");
+			this.skeleton = skeleton;
+			bone = skeleton.bones.Items[data.boneData.index];
+			if (data.setupPose.GetDarkColor().HasValue) {
+				pose.SetDarkColor(new Color32F());
+				constrainedPose.SetDarkColor(new Color32F());
+			}
+			SetupPose();
+		}
 
-    /// <summary>Copy constructor.</summary>
-    public Slot(Slot slot, Bone bone)
-    {
-        if (slot == null) throw new ArgumentNullException("slot", "slot cannot be null.");
-        if (bone == null) throw new ArgumentNullException("bone", "bone cannot be null.");
-        data = slot.data;
-        this.bone = bone;
-        r = slot.r;
-        g = slot.g;
-        b = slot.b;
-        a = slot.a;
+		/// <summary>Copy constructor.</summary>
+		public Slot (Slot slot, Bone bone, Skeleton skeleton)
+			: base(slot.data, new SlotPose(), new SlotPose()) {
+			if (bone == null) throw new ArgumentNullException("bone", "bone cannot be null.");
+			if (skeleton == null) throw new ArgumentNullException("skeleton", "skeleton cannot be null.");
+			this.bone = bone;
+			this.skeleton = skeleton;
+			if (data.setupPose.GetDarkColor().HasValue) {
+				pose.SetDarkColor(new Color32F());
+				constrainedPose.SetDarkColor(new Color32F());
+			}
+			pose.Set(slot.pose);
+		}
 
-        // darkColor = slot.darkColor == null ? null : new Color(slot.darkColor);
-        if (slot.hasSecondColor)
-        {
-            r2 = slot.r2;
-            g2 = slot.g2;
-            b2 = slot.b2;
-        }
-        else
-        {
-            r2 = g2 = b2 = 0;
-        }
+		/// <summary>The bone this slot belongs to.</summary>
+		public Bone Bone { get { return bone; } }
 
-        hasSecondColor = slot.hasSecondColor;
-
-        attachment = slot.attachment;
-        attachmentTime = slot.attachmentTime;
-        deform.AddRange(slot.deform);
-    }
-
-    /// <summary>The slot's setup pose data.</summary>
-    public SlotData Data => data;
-
-    /// <summary>The bone this slot belongs to.</summary>
-    public Bone Bone => bone;
-
-    /// <summary>The skeleton this slot belongs to.</summary>
-    public Skeleton Skeleton => bone.skeleton;
-
-    /// <summary>
-    ///     The color used to tint the slot's attachment. If <see cref="HasSecondColor" /> is set, this is used as the light
-    ///     color for two
-    ///     color tinting.
-    /// </summary>
-    public float R
-    {
-        get => r;
-        set => r = value;
-    }
-
-    /// <summary>
-    ///     The color used to tint the slot's attachment. If <see cref="HasSecondColor" /> is set, this is used as the light
-    ///     color for two
-    ///     color tinting.
-    /// </summary>
-    public float G
-    {
-        get => g;
-        set => g = value;
-    }
-
-    /// <summary>
-    ///     The color used to tint the slot's attachment. If <see cref="HasSecondColor" /> is set, this is used as the light
-    ///     color for two
-    ///     color tinting.
-    /// </summary>
-    public float B
-    {
-        get => b;
-        set => b = value;
-    }
-
-    /// <summary>
-    ///     The color used to tint the slot's attachment. If <see cref="HasSecondColor" /> is set, this is used as the light
-    ///     color for two
-    ///     color tinting.
-    /// </summary>
-    public float A
-    {
-        get => a;
-        set => a = value;
-    }
-
-    /// <summary>
-    ///     The dark color used to tint the slot's attachment for two color tinting, ignored if two color tinting is not
-    ///     used.
-    /// </summary>
-    /// <seealso cref="HasSecondColor" />
-    public float R2
-    {
-        get => r2;
-        set => r2 = value;
-    }
-
-    /// <summary>
-    ///     The dark color used to tint the slot's attachment for two color tinting, ignored if two color tinting is not
-    ///     used.
-    /// </summary>
-    /// <seealso cref="HasSecondColor" />
-    public float G2
-    {
-        get => g2;
-        set => g2 = value;
-    }
-
-    /// <summary>
-    ///     The dark color used to tint the slot's attachment for two color tinting, ignored if two color tinting is not
-    ///     used.
-    /// </summary>
-    /// <seealso cref="HasSecondColor" />
-    public float B2
-    {
-        get => b2;
-        set => b2 = value;
-    }
-
-    /// <summary>
-    ///     Whether R2 G2 B2 are used to tint the slot's attachment for two color tinting. False if two color tinting is
-    ///     not used.
-    /// </summary>
-    public bool HasSecondColor
-    {
-        get => data.hasSecondColor;
-        set => data.hasSecondColor = value;
-    }
-
-    public Attachment? Attachment
-    {
-        /// <summary>The current attachment for the slot, or null if the slot has no attachment.</summary>
-        get => attachment;
-        /// <summary>
-        /// Sets the slot's attachment and, if the attachment changed, resets <see cref="AttachmentTime"/> and clears
-        /// <see cref="Deform">.</summary>
-        /// <param name="value">May be null.</param>
-        set
-        {
-            if (attachment == value) return;
-            attachment = value;
-            attachmentTime = bone.skeleton.time;
-            deform.Clear(false);
-        }
-    }
-
-    /// <summary>
-    ///     The time that has elapsed since the last time the attachment was set or cleared. Relies on Skeleton
-    ///     <see cref="Skeleton.Time" />
-    /// </summary>
-    public float AttachmentTime
-    {
-        get => bone.skeleton.time - attachmentTime;
-        set => attachmentTime = bone.skeleton.time - value;
-    }
-
-    /// <summary>
-    ///     Vertices to deform the slot's attachment. For an unweighted mesh, the entries are local positions for each vertex.
-    ///     For a
-    ///     weighted mesh, the entries are an offset for each vertex which will be added to the mesh's local vertex positions.
-    ///     <para />
-    ///     See <see cref="VertexAttachment.ComputeWorldVertices(Slot, int, int, float[], int, int)" /> and
-    ///     <see cref="DeformTimeline" />.
-    /// </summary>
-    public ExposedList<float> Deform
-    {
-        get => deform;
-        set
-        {
-            if (deform == null) throw new ArgumentNullException("deform", "deform cannot be null.");
-            deform = value;
-        }
-    }
-
-    public void ClampColor()
-    {
-        r = MathUtils.Clamp(r, 0, 1);
-        g = MathUtils.Clamp(g, 0, 1);
-        b = MathUtils.Clamp(b, 0, 1);
-        a = MathUtils.Clamp(a, 0, 1);
-    }
-
-    public void ClampSecondColor()
-    {
-        r2 = MathUtils.Clamp(r2, 0, 1);
-        g2 = MathUtils.Clamp(g2, 0, 1);
-        b2 = MathUtils.Clamp(b2, 0, 1);
-    }
-
-    /// <summary>Sets this slot to the setup pose.</summary>
-    public void SetToSetupPose()
-    {
-        r = data.r;
-        g = data.g;
-        b = data.b;
-        a = data.a;
-
-        // if (darkColor != null) darkColor.set(data.darkColor);
-        if (HasSecondColor)
-        {
-            r2 = data.r2;
-            g2 = data.g2;
-            b2 = data.b2;
-        }
-
-        if (data.attachmentName == null)
-        {
-            Attachment = null;
-        }
-        else
-        {
-            attachment = null;
-            Attachment = bone.skeleton.GetAttachment(data.index, data.attachmentName);
-        }
-    }
-
-    public override string ToString()
-    {
-        return data.name;
-    }
+		/// <summary>Sets this slot to the setup pose.</summary>
+		override public void SetupPose () {
+			pose.SetColor(data.setupPose.GetColor());
+			if (pose.GetDarkColor().HasValue) pose.SetDarkColor(data.setupPose.GetDarkColor());
+			pose.sequenceIndex = data.setupPose.sequenceIndex;
+			if (data.attachmentName == null)
+				pose.Attachment = null;
+			else {
+				pose.attachment = null;
+				pose.Attachment = skeleton.GetAttachment(data.index, data.attachmentName);
+			}
+		}
+	}
 }

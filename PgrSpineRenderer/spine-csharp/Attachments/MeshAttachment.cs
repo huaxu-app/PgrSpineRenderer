@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,287 +27,210 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+#if (UNITY_5 || UNITY_5_3_OR_NEWER || UNITY_WSA || UNITY_WP8 || UNITY_WP8_1)
+#define IS_UNITY
+#endif
 
-/// <summary>Attachment that displays a texture region using a mesh.</summary>
-public class MeshAttachment : VertexAttachment, IHasRendererObject
-{
-    internal int hulllength;
-    private MeshAttachment parentMesh;
-    internal float r = 1, g = 1, b = 1, a = 1;
-    internal float regionOffsetX, regionOffsetY, regionWidth, regionHeight, regionOriginalWidth, regionOriginalHeight;
-    internal int[] triangles;
-    internal float[] uvs, regionUVs;
+using System;
 
-    public MeshAttachment(string name)
-        : base(name)
-    {
-    }
+namespace Spine {
+#if IS_UNITY
+	using Color32F = UnityEngine.Color;
+#endif
 
-    public int HullLength
-    {
-        get => hulllength;
-        set => hulllength = value;
-    }
+	/// <summary>Attachment that displays a texture region using a mesh.</summary>
+	public class MeshAttachment : VertexAttachment, IHasSequence {
+		internal readonly Sequence sequence;
+		internal float[] regionUVs;
+		internal int[] triangles;
+		internal int hullLength;
+		internal string path;
+		// Color is a struct, set to protected to prevent
+		// Color color = slot.color; color.a = 0.5;
+		// modifying just a copy of the struct instead of the original
+		// object as in reference implementation.
+		protected Color32F color = new Color32F(1, 1, 1, 1);
+		private MeshAttachment sourceMesh;
 
-    public float[] RegionUVs
-    {
-        get => regionUVs;
-        set => regionUVs = value;
-    }
+		public int HullLength { get { return hullLength; } set { hullLength = value; } }
 
-    /// <summary>
-    ///     The UV pair for each vertex, normalized within the entire texture. <seealso cref="MeshAttachment.UpdateUVs" />
-    /// </summary>
-    public float[] UVs
-    {
-        get => uvs;
-        set => uvs = value;
-    }
+		/// <summary>The UV pair for each vertex, normalized within the texture region.</summary>
+		public float[] RegionUVs { get { return regionUVs; } set { regionUVs = value; } }
+		/// <summary>Triplets of vertex indices which describe the mesh's triangulation.</summary>
+		public int[] Triangles { get { return triangles; } set { triangles = value; } }
 
-    public int[] Triangles
-    {
-        get => triangles;
-        set => triangles = value;
-    }
+		public Color32F GetColor () {
+			return color;
+		}
 
-    public float R
-    {
-        get => r;
-        set => r = value;
-    }
+		public void SetColor (Color32F color) {
+			this.color = color;
+		}
 
-    public float G
-    {
-        get => g;
-        set => g = value;
-    }
+		public void SetColor (float r, float g, float b, float a) {
+			color = new Color32F(r, g, b, a);
+		}
 
-    public float B
-    {
-        get => b;
-        set => b = value;
-    }
+		public string Path { get { return path; } set { path = value; } }
+		public Sequence Sequence { get { return sequence; } }
 
-    public float A
-    {
-        get => a;
-        set => a = value;
-    }
+		/// <summary>
+		/// The source mesh if this is a linked mesh, else null. A linked mesh shares the
+		/// <see cref="VertexAttachment.Bones">Bones</see>, <see cref="VertexAttachment.Vertices">Vertices</see>,
+		/// <see cref="RegionUVs"/>, <see cref="Triangles"/>, <see cref="HullLength"/>, <see cref="Edges"/>,
+		/// <see cref="Width"/>, <see cref="Height"/> with the
+		/// source mesh, but may have a different <see cref="name"/> or <see cref="path"/>, and therefore a different texture region.
+		/// </summary>
+		public MeshAttachment SourceMesh {
+			get { return sourceMesh; }
+			set {
+				sourceMesh = value;
+				if (value != null) {
+					bones = value.bones;
+					vertices = value.vertices;
+					worldVerticesLength = value.worldVerticesLength;
+					regionUVs = value.regionUVs;
+					triangles = value.triangles;
+					HullLength = value.HullLength;
+					Edges = value.Edges;
+					Width = value.Width;
+					Height = value.Height;
+				}
+			}
+		}
 
-    public string Path { get; set; }
-    public float RegionU { get; set; }
-    public float RegionV { get; set; }
-    public float RegionU2 { get; set; }
-    public float RegionV2 { get; set; }
-    public bool RegionRotate { get; set; }
-    public int RegionDegrees { get; set; }
+		// Nonessential.
+		/// <summary>
+		/// Vertex index pairs describing edges for controlling triangulation, or null if nonessential data was not exported. Mesh
+		/// triangles do not cross edges. Triangulation is not performed at runtime.
+		/// </summary>
+		public int[] Edges { get; set; }
+		public float Width { get; set; }
+		public float Height { get; set; }
 
-    public float RegionOffsetX
-    {
-        get => regionOffsetX;
-        set => regionOffsetX = value;
-    }
+		public MeshAttachment (string name, Sequence sequence)
+			: base(name) {
+			if (sequence == null) throw new ArgumentException("sequence cannot be null.", "sequence");
+			this.sequence = sequence;
+		}
 
-    public float RegionOffsetY
-    {
-        get => regionOffsetY;
-        set => regionOffsetY = value;
-    } // Pixels stripped from the bottom left, unrotated.
+		/// <summary>Copy constructor. Use <see cref="NewLinkedMesh"/> if the other mesh is a linked mesh.</summary>
+		protected MeshAttachment (MeshAttachment other)
+			: base(other) {
 
-    public float RegionWidth
-    {
-        get => regionWidth;
-        set => regionWidth = value;
-    }
+			if (sourceMesh != null) throw new ArgumentException("Use newLinkedMesh to copy a linked mesh.");
 
-    public float RegionHeight
-    {
-        get => regionHeight;
-        set => regionHeight = value;
-    } // Unrotated, stripped size.
+			path = other.path;
+			color = other.color;
 
-    public float RegionOriginalWidth
-    {
-        get => regionOriginalWidth;
-        set => regionOriginalWidth = value;
-    }
+			regionUVs = new float[other.regionUVs.Length];
+			Array.Copy(other.regionUVs, 0, regionUVs, 0, regionUVs.Length);
 
-    public float RegionOriginalHeight
-    {
-        get => regionOriginalHeight;
-        set => regionOriginalHeight = value;
-    } // Unrotated, unstripped size.
+			triangles = new int[other.triangles.Length];
+			Array.Copy(other.triangles, 0, triangles, 0, triangles.Length);
 
-    public MeshAttachment ParentMesh
-    {
-        get => parentMesh;
-        set
-        {
-            parentMesh = value;
-            if (value != null)
-            {
-                bones = value.bones;
-                vertices = value.vertices;
-                worldVerticesLength = value.worldVerticesLength;
-                regionUVs = value.regionUVs;
-                triangles = value.triangles;
-                HullLength = value.HullLength;
-                Edges = value.Edges;
-                Width = value.Width;
-                Height = value.Height;
-            }
-        }
-    }
+			hullLength = other.hullLength;
+			sequence = new Sequence(other.sequence);
 
-    // Nonessential.
-    public int[] Edges { get; set; }
-    public float Width { get; set; }
-    public float Height { get; set; }
-    public object RendererObject { get; set; }
+			// Nonessential.
+			if (other.Edges != null) {
+				Edges = new int[other.Edges.Length];
+				Array.Copy(other.Edges, 0, Edges, 0, Edges.Length);
+			}
+			Width = other.Width;
+			Height = other.Height;
+		}
 
-    public void UpdateUVs()
-    {
-        var regionUVs = this.regionUVs;
-        if (this.uvs == null || this.uvs.Length != regionUVs.Length) this.uvs = new float[regionUVs.Length];
-        var uvs = this.uvs;
-        float u = RegionU, v = RegionV, width = 0, height = 0;
+		public void UpdateSequence () {
+			sequence.Update(this);
+		}
 
-        if (RegionDegrees == 90)
-        {
-            var textureHeight = regionWidth / (RegionV2 - RegionV);
-            var textureWidth = regionHeight / (RegionU2 - RegionU);
-            u -= (RegionOriginalHeight - RegionOffsetY - RegionHeight) / textureWidth;
-            v -= (RegionOriginalWidth - RegionOffsetX - RegionWidth) / textureHeight;
-            width = RegionOriginalHeight / textureWidth;
-            height = RegionOriginalWidth / textureHeight;
+		/// <summary>
+		/// Returns a new mesh with the <see cref="SourceMesh"/> set to this mesh's source mesh, if any, else to this mesh.
+		/// </summary>
+		public MeshAttachment NewLinkedMesh () {
+			var mesh = new MeshAttachment(Name, new Sequence(sequence));
 
-            for (int i = 0, n = uvs.Length; i < n; i += 2)
-            {
-                uvs[i] = u + regionUVs[i + 1] * width;
-                uvs[i + 1] = v + (1 - regionUVs[i]) * height;
-            }
-        }
-        else if (RegionDegrees == 180)
-        {
-            var textureWidth = regionWidth / (RegionU2 - RegionU);
-            var textureHeight = regionHeight / (RegionV2 - RegionV);
-            u -= (RegionOriginalWidth - RegionOffsetX - RegionWidth) / textureWidth;
-            v -= RegionOffsetY / textureHeight;
-            width = RegionOriginalWidth / textureWidth;
-            height = RegionOriginalHeight / textureHeight;
+			mesh.timelineAttachment = timelineAttachment;
+			mesh.path = path;
+			mesh.color = color;
+			mesh.SourceMesh = sourceMesh != null ? sourceMesh : this;
+			mesh.UpdateSequence();
+			return mesh;
+		}
 
-            for (int i = 0, n = uvs.Length; i < n; i += 2)
-            {
-                uvs[i] = u + (1 - regionUVs[i]) * width;
-                uvs[i + 1] = v + (1 - regionUVs[i + 1]) * height;
-            }
-        }
-        else if (RegionDegrees == 270)
-        {
-            var textureWidth = regionWidth / (RegionU2 - RegionU);
-            var textureHeight = regionHeight / (RegionV2 - RegionV);
-            u -= RegionOffsetY / textureWidth;
-            v -= RegionOffsetX / textureHeight;
-            width = RegionOriginalHeight / textureWidth;
-            height = RegionOriginalWidth / textureHeight;
+		public override Attachment Copy () {
+			return sourceMesh != null ? NewLinkedMesh() : new MeshAttachment(this);
+		}
 
-            for (int i = 0, n = uvs.Length; i < n; i += 2)
-            {
-                uvs[i] = u + (1 - regionUVs[i + 1]) * width;
-                uvs[i + 1] = v + regionUVs[i] * height;
-            }
-        }
-        else
-        {
-            var textureWidth = regionWidth / (RegionU2 - RegionU);
-            var textureHeight = regionHeight / (RegionV2 - RegionV);
-            u -= RegionOffsetX / textureWidth;
-            v -= (RegionOriginalHeight - RegionOffsetY - RegionHeight) / textureHeight;
-            width = RegionOriginalWidth / textureWidth;
-            height = RegionOriginalHeight / textureHeight;
-
-            for (int i = 0, n = uvs.Length; i < n; i += 2)
-            {
-                uvs[i] = u + regionUVs[i] * width;
-                uvs[i + 1] = v + regionUVs[i + 1] * height;
-            }
-        }
-    }
-
-    public override Attachment Copy()
-    {
-        if (parentMesh != null) return NewLinkedMesh();
-
-        var copy = new MeshAttachment(Name);
-        copy.RendererObject = RendererObject;
-        copy.regionOffsetX = regionOffsetX;
-        copy.regionOffsetY = regionOffsetY;
-        copy.regionWidth = regionWidth;
-        copy.regionHeight = regionHeight;
-        copy.regionOriginalWidth = regionOriginalWidth;
-        copy.regionOriginalHeight = regionOriginalHeight;
-        copy.RegionRotate = RegionRotate;
-        copy.RegionDegrees = RegionDegrees;
-        copy.RegionU = RegionU;
-        copy.RegionV = RegionV;
-        copy.RegionU2 = RegionU2;
-        copy.RegionV2 = RegionV2;
-
-        copy.Path = Path;
-        copy.r = r;
-        copy.g = g;
-        copy.b = b;
-        copy.a = a;
-
-        CopyTo(copy);
-        copy.regionUVs = new float[regionUVs.Length];
-        Array.Copy(regionUVs, 0, copy.regionUVs, 0, regionUVs.Length);
-        copy.uvs = new float[uvs.Length];
-        Array.Copy(uvs, 0, copy.uvs, 0, uvs.Length);
-        copy.triangles = new int[triangles.Length];
-        Array.Copy(triangles, 0, copy.triangles, 0, triangles.Length);
-        copy.HullLength = HullLength;
-
-        // Nonessential.
-        if (Edges != null)
-        {
-            copy.Edges = new int[Edges.Length];
-            Array.Copy(Edges, 0, copy.Edges, 0, Edges.Length);
-        }
-
-        copy.Width = Width;
-        copy.Height = Height;
-        return copy;
-    }
-
-    /// <summary>Returns a new mesh with this mesh set as the <see cref="ParentMesh" />.
-    public MeshAttachment NewLinkedMesh()
-    {
-        var mesh = new MeshAttachment(Name);
-        mesh.RendererObject = RendererObject;
-        mesh.regionOffsetX = regionOffsetX;
-        mesh.regionOffsetY = regionOffsetY;
-        mesh.regionWidth = regionWidth;
-        mesh.regionHeight = regionHeight;
-        mesh.regionOriginalWidth = regionOriginalWidth;
-        mesh.regionOriginalHeight = regionOriginalHeight;
-        mesh.RegionDegrees = RegionDegrees;
-        mesh.RegionRotate = RegionRotate;
-        mesh.RegionU = RegionU;
-        mesh.RegionV = RegionV;
-        mesh.RegionU2 = RegionU2;
-        mesh.RegionV2 = RegionV2;
-
-        mesh.Path = Path;
-        mesh.r = r;
-        mesh.g = g;
-        mesh.b = b;
-        mesh.a = a;
-
-        mesh.deformAttachment = deformAttachment;
-        mesh.ParentMesh = parentMesh != null ? parentMesh : this;
-        mesh.UpdateUVs();
-        return mesh;
-    }
+		/// <summary>
+		/// Computes <see cref="Sequence.GetUVs(int)">UVs</see> for a mesh attachment.
+		/// </summary>
+		/// <param name="uvs">Output array for the computed UVs, same length as regionUVs.</param>
+		internal static void ComputeUVs (TextureRegion region, float[] regionUVs, float[] uvs) {
+			int n = uvs.Length;
+			float u, v, width, height;
+			AtlasRegion r = region as AtlasRegion;
+			if (r != null) {
+				u = r.u;
+				v = r.v;
+				float textureWidth = region.width / (region.u2 - region.u);
+				float textureHeight = region.height / (region.v2 - region.v);
+				switch (r.degrees) {
+				case 90: {
+					u -= (r.originalHeight - r.offsetY - r.packedWidth) / textureWidth;
+					v -= (r.originalWidth - r.offsetX - r.packedHeight) / textureHeight;
+					width = r.originalHeight / textureWidth;
+					height = r.originalWidth / textureHeight;
+					for (int i = 0; i < n; i += 2) {
+						uvs[i] = u + regionUVs[i + 1] * width;
+						uvs[i + 1] = v + (1 - regionUVs[i]) * height;
+					}
+					return;
+				}
+				case 180: {
+					u -= (r.originalWidth - r.offsetX - r.packedWidth) / textureWidth;
+					v -= r.offsetY / textureHeight;
+					width = r.originalWidth / textureWidth;
+					height = r.originalHeight / textureHeight;
+					for (int i = 0; i < n; i += 2) {
+						uvs[i] = u + (1 - regionUVs[i]) * width;
+						uvs[i + 1] = v + (1 - regionUVs[i + 1]) * height;
+					}
+					return;
+				}
+				case 270: {
+					u -= r.offsetY / textureWidth;
+					v -= r.offsetX / textureHeight;
+					width = r.originalHeight / textureWidth;
+					height = r.originalWidth / textureHeight;
+					for (int i = 0; i < n; i += 2) {
+						uvs[i] = u + (1 - regionUVs[i + 1]) * width;
+						uvs[i + 1] = v + regionUVs[i] * height;
+					}
+					return;
+				}
+				default: {
+					u -= r.offsetX / textureWidth;
+					v -= (r.originalHeight - r.offsetY - r.packedHeight) / textureHeight;
+					width = r.originalWidth / textureWidth;
+					height = r.originalHeight / textureHeight;
+					break;
+				}
+				}
+			} else if (region == null) {
+				u = v = 0;
+				width = height = 1;
+			} else {
+				u = region.u;
+				v = region.v;
+				width = region.u2 - u;
+				height = region.v2 - v;
+			}
+			for (int i = 0; i < n; i += 2) {
+				uvs[i] = u + regionUVs[i] * width;
+				uvs[i + 1] = v + regionUVs[i + 1] * height;
+			}
+		}
+	}
 }

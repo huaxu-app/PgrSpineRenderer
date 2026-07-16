@@ -1,8 +1,8 @@
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -27,22 +27,21 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
-
-/// <summary>The interface for items updated by <see cref="Skeleton.UpdateWorldTransform()" />.</summary>
-public interface IUpdatable
-{
+namespace Spine {
 	/// <summary>
-	///     Returns false when this item has not been updated because a skin is required and the
-	///     <see cref="Skeleton.Skin">
-	///         active
-	///         skin
-	///     </see>
-	///     does not contain this item.
+	/// Stores a pose for a slider.
 	/// </summary>
-	/// <seealso cref="Skin.Bones" />
-	/// <seealso cref="Skin.Constraints" />
-	bool Active { get; }
+	public class SliderPose : IPose<SliderPose> {
+		internal float time, mix;
 
-    void Update();
+		public void Set (SliderPose pose) {
+			time = pose.time;
+			mix = pose.mix;
+		}
+
+		/// <summary>The time in the <see cref="SliderData.Animation"/> to apply the animation.</summary>
+		public float Time { get { return time; } set { time = value; } }
+		/// <summary>A percentage (unbounded) that controls the mix between the constrained and unconstrained poses.</summary>
+		public float Mix { get { return mix; } set { mix = value; } }
+	}
 }

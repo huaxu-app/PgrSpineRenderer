@@ -1,8 +1,8 @@
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -27,23 +27,22 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+namespace Spine {
+	public interface AttachmentLoader {
+		/// <return>May be null to not load any attachment.</return>
+		RegionAttachment NewRegionAttachment (Skin skin, string placeholder, string name, string path, Sequence sequence);
 
-public interface AttachmentLoader
-{
-    /// <return>May be null to not load any attachment.</return>
-    RegionAttachment NewRegionAttachment(Skin skin, string name, string path);
+		/// <return>May be null to not load any attachment.</return>
+		MeshAttachment NewMeshAttachment (Skin skin, string placeholder, string name, string path, Sequence sequence);
 
-    /// <return>May be null to not load any attachment.</return>
-    MeshAttachment NewMeshAttachment(Skin skin, string name, string path);
+		/// <return>May be null to not load any attachment.</return>
+		BoundingBoxAttachment NewBoundingBoxAttachment (Skin skin, string placeholder, string name);
 
-    /// <return>May be null to not load any attachment.</return>
-    BoundingBoxAttachment NewBoundingBoxAttachment(Skin skin, string name);
+		/// <returns>May be null to not load any attachment</returns>
+		PathAttachment NewPathAttachment (Skin skin, string placeholder, string name);
 
-    /// <returns>May be null to not load any attachment</returns>
-    PathAttachment NewPathAttachment(Skin skin, string name);
+		PointAttachment NewPointAttachment (Skin skin, string placeholder, string name);
 
-    PointAttachment NewPointAttachment(Skin skin, string name);
-
-    ClippingAttachment NewClippingAttachment(Skin skin, string name);
+		ClippingAttachment NewClippingAttachment (Skin skin, string placeholder, string name);
+	}
 }

@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,180 +27,181 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-using Spine.Collections;
+using System;
+using System.Collections;
+using System.Collections.Generic;
 
-namespace Spine;
+namespace Spine {
+	/// <summary>Stores attachments by slot index and placeholder name. Multiple <see cref="Skeleton"/> instances can use the same skins.
+	/// <para>See <see cref="Spine.SkeletonData.DefaultSkin"/>, <see cref="Spine.Skeleton.Skin"/>, and
+	/// <a href="http://esotericsoftware.com/spine-runtime-skins">Runtime skins</a> in the Spine Runtimes Guide.</para>
+	/// </summary>
+	public class Skin {
+		internal string name;
+		// Difference to reference implementation: using Dictionary<SkinKey, SkinEntry> instead of HashSet<SkinEntry>.
+		// Reason is that there is no efficient way to replace or access an already added element, losing any benefits.
+		private Dictionary<SkinKey, SkinEntry> attachments = new Dictionary<SkinKey, SkinEntry>(SkinKeyComparer.Instance);
+		internal readonly ExposedList<BoneData> bones = new ExposedList<BoneData>();
+		internal readonly ExposedList<IConstraintData> constraints = new ExposedList<IConstraintData>();
 
-/// <summary>
-///     Stores attachments by slot index and attachment name.
-///     <para>
-///         See SkeletonData <see cref="Spine.SkeletonData.DefaultSkin" />, Skeleton <see cref="Spine.Skeleton.Skin" />,
-///         and
-///         <a href="http://esotericsoftware.com/spine-runtime-skins">Runtime skins</a> in the Spine Runtimes Guide.
-///     </para>
-/// </summary>
-public class Skin
-{
-    internal readonly ExposedList<BoneData> bones = new();
-    internal readonly ExposedList<ConstraintData> constraints = new();
-    internal string name;
+		/// <summary>The skin's name, unique across all skins in the skeleton.
+		/// <para>See <see cref="SkeletonData.FindSkin(string)"/>.</para></summary>
+		public string Name { get { return name; } }
+		/// <summary>Returns all attachments contained in this skin.</summary>
+		public ICollection<SkinEntry> Attachments { get { return attachments.Values; } }
+		public ExposedList<BoneData> Bones { get { return bones; } }
+		public ExposedList<IConstraintData> Constraints { get { return constraints; } }
 
-    public Skin(string name)
-    {
-        if (name == null) throw new ArgumentNullException("name", "name cannot be null.");
-        this.name = name;
-    }
+		public Skin (string name) {
+			if (name == null) throw new ArgumentNullException("name", "name cannot be null.");
+			this.name = name;
+		}
 
-    public string Name => name;
-    public Spine.Collections.OrderedDictionary<SkinEntry, Attachment> Attachments { get; } = new(SkinEntryComparer.Instance);
+		/// <summary>Adds an attachment to the skin for the specified slot index and placeholder name.</summary>
+		public void SetAttachment (int slotIndex, string placeholder, Attachment attachment) {
+			if (attachment == null) throw new ArgumentNullException("attachment", "attachment cannot be null.");
+			attachments[new SkinKey(slotIndex, placeholder)] = new SkinEntry(slotIndex, placeholder, attachment);
+		}
 
-    public ExposedList<BoneData> Bones => bones;
-    public ExposedList<ConstraintData> Constraints => constraints;
+		/// <summary>Adds all attachments, bones, and constraints from the specified skin to this skin.</summary>
+		public void AddSkin (Skin skin) {
+			foreach (BoneData data in skin.bones)
+				if (!bones.Contains(data)) bones.Add(data);
 
-    /// <summary>
-    ///     Adds an attachment to the skin for the specified slot index and name.
-    ///     If the name already exists for the slot, the previous value is replaced.
-    /// </summary>
-    public void SetAttachment(int slotIndex, string name, Attachment attachment)
-    {
-        if (attachment == null) throw new ArgumentNullException("attachment", "attachment cannot be null.");
-        if (slotIndex < 0) throw new ArgumentNullException("slotIndex", "slotIndex must be >= 0.");
-        Attachments[new SkinEntry(slotIndex, name, attachment)] = attachment;
-    }
+			foreach (IConstraintData data in skin.constraints)
+				if (!constraints.Contains(data)) constraints.Add(data);
 
-    ///<summary>Adds all attachments, bones, and constraints from the specified skin to this skin.</summary>
-    public void AddSkin(Skin skin)
-    {
-        foreach (var data in skin.bones)
-            if (!bones.Contains(data))
-                bones.Add(data);
+			foreach (KeyValuePair<SkinKey, SkinEntry> item in skin.attachments) {
+				SkinEntry entry = item.Value;
+				SetAttachment(entry.slotIndex, entry.placeholder, entry.attachment);
+			}
+		}
 
-        foreach (var data in skin.constraints)
-            if (!constraints.Contains(data))
-                constraints.Add(data);
+		/// <summary>Adds all attachments from the specified skin to this skin. Attachments are deep copied.</summary>
+		public void CopySkin (Skin skin) {
+			foreach (BoneData data in skin.bones)
+				if (!bones.Contains(data)) bones.Add(data);
 
-        foreach (var entry in skin.Attachments.Keys)
-            SetAttachment(entry.SlotIndex, entry.Name, entry.Attachment);
-    }
+			foreach (IConstraintData data in skin.constraints)
+				if (!constraints.Contains(data)) constraints.Add(data);
 
-    ///<summary>Adds all attachments from the specified skin to this skin. Attachments are deep copied.</summary>
-    public void CopySkin(Skin skin)
-    {
-        foreach (var data in skin.bones)
-            if (!bones.Contains(data))
-                bones.Add(data);
+			foreach (KeyValuePair<SkinKey, SkinEntry> item in skin.attachments) {
+				SkinEntry entry = item.Value;
+				if (entry.attachment is MeshAttachment) {
+					SetAttachment(entry.slotIndex, entry.placeholder,
+					   entry.attachment != null ? ((MeshAttachment)entry.attachment).NewLinkedMesh() : null);
+				} else
+					SetAttachment(entry.slotIndex, entry.placeholder, entry.attachment != null ? entry.attachment.Copy() : null);
+			}
+		}
 
-        foreach (var data in skin.constraints)
-            if (!constraints.Contains(data))
-                constraints.Add(data);
+		/// <summary>Returns the attachment for the specified slot index and placeholder name, or null.</summary>
+		/// <returns>May be null.</returns>
+		public Attachment GetAttachment (int slotIndex, string placeholder) {
+			SkinEntry entry;
+			bool containsKey = attachments.TryGetValue(new SkinKey(slotIndex, placeholder), out entry);
+			return containsKey ? entry.attachment : null;
+		}
 
-        foreach (var entry in skin.Attachments.Keys)
-            if (entry.Attachment is MeshAttachment)
-                SetAttachment(entry.SlotIndex, entry.Name,
-                    entry.Attachment != null ? ((MeshAttachment)entry.Attachment).NewLinkedMesh() : null);
-            else
-                SetAttachment(entry.SlotIndex, entry.Name, entry.Attachment != null ? entry.Attachment.Copy() : null);
-    }
+		/// <summary> Removes the attachment in the skin for the specified slot index and placeholder name, if any.</summary>
+		public void RemoveAttachment (int slotIndex, string placeholder) {
+			attachments.Remove(new SkinKey(slotIndex, placeholder));
+		}
 
-    /// <summary>Returns the attachment for the specified slot index and name, or null.</summary>
-    /// <returns>May be null.</returns>
-    public Attachment GetAttachment(int slotIndex, string name)
-    {
-        var lookup = new SkinEntry(slotIndex, name, null);
-        Attachment attachment = null;
-        var containsKey = Attachments.TryGetValue(lookup, out attachment);
-        return containsKey ? attachment : null;
-    }
+		/// <summary>Returns all attachments in this skin for the specified slot index.</summary>
+		/// <param name="slotIndex">The target slotIndex. To find the slot index, use <see cref="Spine.SkeletonData.FindSlot"/> and <see cref="Spine.SlotData.Index"/></param>.
+		public void GetAttachments (int slotIndex, List<SkinEntry> attachments) {
+			if (slotIndex < 0) throw new ArgumentException("slotIndex must be >= 0.");
+			if (attachments == null) throw new ArgumentNullException("attachments", "attachments cannot be null.");
+			foreach (KeyValuePair<SkinKey, SkinEntry> item in this.attachments) {
+				SkinEntry entry = item.Value;
+				if (entry.slotIndex == slotIndex) attachments.Add(entry);
+			}
+		}
 
-    /// <summary> Removes the attachment in the skin for the specified slot index and name, if any.</summary>
-    public void RemoveAttachment(int slotIndex, string name)
-    {
-        if (slotIndex < 0) throw new ArgumentOutOfRangeException("slotIndex", "slotIndex must be >= 0");
-        var lookup = new SkinEntry(slotIndex, name, null);
-        Attachments.Remove(lookup);
-    }
+		/// <summary>Clears all attachments, bones, and constraints.</summary>
+		public void Clear () {
+			attachments.Clear();
+			bones.Clear();
+			constraints.Clear();
+		}
 
-    ///<summary>Returns all attachments contained in this skin.</summary>
-    public ICollection<SkinEntry> GetAttachments()
-    {
-        return Attachments.Keys;
-    }
+		override public string ToString () {
+			return name;
+		}
 
-    /// <summary>Returns all attachments in this skin for the specified slot index.</summary>
-    /// <param name="slotIndex">
-    ///     The target slotIndex. To find the slot index, use <see cref="Spine.Skeleton.FindSlotIndex" />
-    ///     or <see cref="Spine.SkeletonData.FindSlotIndex" />
-    public void GetAttachments(int slotIndex, List<SkinEntry> attachments)
-    {
-        foreach (var entry in Attachments.Keys)
-            if (entry.SlotIndex == slotIndex)
-                attachments.Add(entry);
-    }
+		/// <summary>Attach all attachments from this skin if the corresponding attachment from the old skin is currently attached.</summary>
+		internal void AttachAll (Skeleton skeleton, Skin oldSkin) {
+			Slot[] slots = skeleton.slots.Items;
+			foreach (KeyValuePair<SkinKey, SkinEntry> item in oldSkin.attachments) {
+				SkinEntry entry = item.Value;
+				SlotPose slot = slots[entry.slotIndex].pose;
+				if (slot.Attachment == entry.attachment) {
+					Attachment attachment = GetAttachment(entry.slotIndex, entry.placeholder);
+					if (attachment != null) slot.Attachment = attachment;
+				}
+			}
+		}
 
-    ///<summary>Clears all attachments, bones, and constraints.</summary>
-    public void Clear()
-    {
-        Attachments.Clear();
-        bones.Clear();
-        constraints.Clear();
-    }
+		// Difference to reference implementation: using Dictionary<SkinKey, SkinEntry> instead of HashSet<SkinEntry>.
+		/// <summary>Stores an entry in the skin consisting of the slot index, placeholder name and attachment.</summary>
+		public struct SkinEntry {
+			internal readonly int slotIndex;
+			internal readonly string placeholder;
+			internal readonly Attachment attachment;
 
-    public override string ToString()
-    {
-        return name;
-    }
+			public SkinEntry (int slotIndex, string placeholder, Attachment attachment) {
+				this.slotIndex = slotIndex;
+				this.placeholder = placeholder;
+				this.attachment = attachment;
+			}
 
-    /// <summary>Attach all attachments from this skin if the corresponding attachment from the old skin is currently attached.</summary>
-    internal void AttachAll(Skeleton skeleton, Skin oldSkin)
-    {
-        foreach (var entry in oldSkin.Attachments.Keys)
-        {
-            var slotIndex = entry.SlotIndex;
-            var slot = skeleton.slots.Items[slotIndex];
-            if (slot.Attachment == entry.Attachment)
-            {
-                var attachment = GetAttachment(slotIndex, entry.Name);
-                if (attachment != null) slot.Attachment = attachment;
-            }
-        }
-    }
+			/// <summary>The <see cref="Skeleton.Slots"/> index.</summary>
+			public int SlotIndex {
+				get {
+					return slotIndex;
+				}
+			}
 
-    /// <summary>Stores an entry in the skin consisting of the slot index, name, and attachment.</summary>
-    public struct SkinEntry
-    {
-        internal readonly int hashCode;
+			/// <summary>The placeholder name that the attachment is associated with.</summary>
+			public string Placeholder {
+				get {
+					return placeholder;
+				}
+			}
 
-        public SkinEntry(int slotIndex, string name, Attachment attachment)
-        {
-            SlotIndex = slotIndex;
-            Name = name;
-            Attachment = attachment;
-            hashCode = Name.GetHashCode() + SlotIndex * 37;
-        }
+			/// <summary>The attachment for this skin entry.</summary>
+			public Attachment Attachment {
+				get {
+					return attachment;
+				}
+			}
+		}
 
-        public int SlotIndex { get; }
+		private struct SkinKey {
+			internal readonly int slotIndex;
+			internal readonly string placeholder;
+			internal readonly int hashCode;
 
-        /// <summary>The name the attachment is associated with, equivalent to the skin placeholder name in the Spine editor.</summary>
-        public string Name { get; }
+			public SkinKey (int slotIndex, string placeholder) {
+				if (slotIndex < 0) throw new ArgumentException("slotIndex must be >= 0.");
+				if (placeholder == null) throw new ArgumentNullException("placeholder", "placeholder cannot be null");
+				this.slotIndex = slotIndex;
+				this.placeholder = placeholder;
+				this.hashCode = placeholder.GetHashCode() + slotIndex * 37;
+			}
+		}
 
-        public Attachment Attachment { get; }
-    }
+		class SkinKeyComparer : IEqualityComparer<SkinKey> {
+			internal static readonly SkinKeyComparer Instance = new SkinKeyComparer();
 
-    // Avoids boxing in the dictionary and is necessary to omit entry.attachment in the comparison.
-    private class SkinEntryComparer : IEqualityComparer<SkinEntry>
-    {
-        internal static readonly SkinEntryComparer Instance = new();
+			bool IEqualityComparer<SkinKey>.Equals (SkinKey e1, SkinKey e2) {
+				return e1.slotIndex == e2.slotIndex && string.Equals(e1.placeholder, e2.placeholder, StringComparison.Ordinal);
+			}
 
-        bool IEqualityComparer<SkinEntry>.Equals(SkinEntry e1, SkinEntry e2)
-        {
-            if (e1.SlotIndex != e2.SlotIndex) return false;
-            if (!string.Equals(e1.Name, e2.Name, StringComparison.Ordinal)) return false;
-            return true;
-        }
-
-        int IEqualityComparer<SkinEntry>.GetHashCode(SkinEntry e)
-        {
-            return e.Name.GetHashCode() + e.SlotIndex * 37;
-        }
-    }
+			int IEqualityComparer<SkinKey>.GetHashCode (SkinKey e) {
+				return e.hashCode;
+			}
+		}
+	}
 }

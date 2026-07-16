@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,27 +27,43 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+using System;
 
-public class ClippingAttachment : VertexAttachment
-{
-    internal SlotData endSlot;
+namespace Spine {
+	public class ClippingAttachment : VertexAttachment {
+		internal SlotData endSlot;
+		internal bool convex, inverse;
 
-    public ClippingAttachment(string name) : base(name)
-    {
-    }
+		/// <summary>Clipping is performed between the clipping attachment's slot and the end slot. If null, clipping is done until the end of
+		/// the skeleton's rendering.</summary>
+		public SlotData EndSlot { get { return endSlot; } set { endSlot = value; } }
 
-    public SlotData EndSlot
-    {
-        get => endSlot;
-        set => endSlot = value;
-    }
+		/// <summary>
+		/// When true the clipping polygon is treated as convex for more efficient clipping. If the polygon deforms to concave then the
+		/// convex hull is used.When false the clipping polygon can be concave and if so has an additional CPU cost.Inverse clipping
+		/// always uses convex.
+		/// </summary>
+		public bool Convex { get { return convex; } set { convex = value; } }
 
-    public override Attachment Copy()
-    {
-        var copy = new ClippingAttachment(Name);
-        CopyTo(copy);
-        copy.endSlot = endSlot;
-        return copy;
-    }
+		/// <summary>
+		/// When false, everything inside the clipping polygon is visible. When true, everything outside the clipping polygon is
+		/// visible and clipping is convex.
+		/// </summary>
+		public bool Inverse { get { return inverse; } set { inverse = value; } }
+
+		public ClippingAttachment (string name) : base(name) {
+		}
+
+		/// <summary>Copy constructor.</summary>
+		protected ClippingAttachment (ClippingAttachment other)
+			: base(other) {
+			endSlot = other.endSlot;
+			convex = other.convex;
+			inverse = other.inverse;
+		}
+
+		public override Attachment Copy () {
+			return new ClippingAttachment(this);
+		}
+	}
 }

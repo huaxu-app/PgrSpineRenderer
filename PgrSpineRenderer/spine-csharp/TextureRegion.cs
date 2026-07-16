@@ -27,22 +27,23 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
+#if (UNITY_5 || UNITY_5_3_OR_NEWER || UNITY_WSA || UNITY_WP8 || UNITY_WP8_1)
+#define IS_UNITY
+#endif
+
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Reflection;
+
 
 namespace Spine {
-	/// <summary>Attachment that has a polygon for bounds checking.</summary>
-	public class BoundingBoxAttachment : VertexAttachment {
-		public BoundingBoxAttachment (string name)
-			: base(name) {
-		}
+	public class TextureRegion {
+		public int width, height;
+		public float u, v, u2, v2;
 
-		/// <summary>Copy constructor.</summary>
-		protected BoundingBoxAttachment (BoundingBoxAttachment other)
-			: base(other) {
-		}
-
-		public override Attachment Copy () {
-			return new BoundingBoxAttachment(this);
-		}
+		virtual public int OriginalWidth { get { return width; } }
+		virtual public int OriginalHeight { get { return height; } }
 	}
 }

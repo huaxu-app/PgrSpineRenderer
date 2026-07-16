@@ -30,49 +30,43 @@
 using System;
 
 namespace Spine {
-	/// <summary>
-	/// An attachment which is a single point and a rotation. This can be used to spawn projectiles, particles, etc. A bone can be
-	/// used in similar ways, but a PointAttachment is slightly less expensive to compute and can be hidden, shown, and placed in a
-	/// skin.
-	/// <p>
-	/// See <a href="https://esotericsoftware.com/spine-points">Point Attachments</a> in the Spine User Guide.
-	/// </summary>
-	public class PointAttachment : Attachment {
-		internal float x, y, rotation;
-		/// <summary>The local x position.</summary>
-		public float X { get { return x; } set { x = value; } }
-		/// <summary>The local y position.</summary>
-		public float Y { get { return y; } set { y = value; } }
-		/// <summary>The local rotation in degrees, counter clockwise.</summary>
-		public float Rotation { get { return rotation; } set { rotation = value; } }
+	public interface IPosedData {
+		bool SkinRequired { get; }
+	}
 
-		public PointAttachment (string name)
-			: base(name) {
+	/// <summary>The base class for storing setup data for a posed object. May be shared with multiple instances.</summary>
+	public class PosedData<P> : IPosedData
+		where P : IPose<P> {
+
+		internal readonly string name;
+		internal readonly P setupPose;
+		internal bool skinRequired;
+
+		protected PosedData (string name, P setupPose) {
+			if (name == null) throw new ArgumentNullException("name", "name cannot be null.");
+			this.name = name;
+			this.setupPose = setupPose;
 		}
 
-		/// <summary>Copy constructor.</summary>
-		protected PointAttachment (PointAttachment other)
-			: base(other) {
-			x = other.x;
-			y = other.y;
-			rotation = other.rotation;
+		public string Name { get { return name; } }
+
+		/// <summary>The setup pose that most animations are relative to.</summary>
+		public P GetSetupPose () {
+			return setupPose;
 		}
 
-		/// <summary>Computes the world position from the local position.</summary>
-		public void ComputeWorldPosition (BonePose bone, out float ox, out float oy) {
-			bone.LocalToWorld(this.x, this.y, out ox, out oy);
+		/// <summary>
+		/// When true, <see cref="Skeleton.UpdateWorldTransform(Physics)"/> only updates this constraint if the <see cref="Skeleton.Skin"/>
+		/// contains this constraint.
+		/// </summary>
+		/// <seealso cref="Skin.Constraints"/>
+		public bool SkinRequired {
+			get { return skinRequired; }
+			set { skinRequired = value; }
 		}
 
-		/// <summary>Computes the world rotation from the local rotation.</summary>
-		public float ComputeWorldRotation (BonePose bone) {
-			float r = rotation * MathUtils.DegRad, cos = (float)Math.Cos(r), sin = (float)Math.Sin(r);
-			float x = cos * bone.a + sin * bone.b;
-			float y = cos * bone.c + sin * bone.d;
-			return MathUtils.Atan2Deg(y, x);
-		}
-
-		public override Attachment Copy () {
-			return new PointAttachment(this);
+		override public string ToString () {
+			return name;
 		}
 	}
 }

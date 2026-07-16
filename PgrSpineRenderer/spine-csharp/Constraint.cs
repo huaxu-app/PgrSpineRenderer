@@ -30,49 +30,34 @@
 using System;
 
 namespace Spine {
+	public interface IConstraint : IPosedActive, IPosed {
+		IConstraintData IData { get; }
+		IConstraint Copy (Skeleton skeleton);
+		bool IsSourceActive { get; }
+		void Sort (Skeleton skeleton);
+		void Update (Skeleton skeleton, Physics physics);
+	}
+
 	/// <summary>
-	/// An attachment which is a single point and a rotation. This can be used to spawn projectiles, particles, etc. A bone can be
-	/// used in similar ways, but a PointAttachment is slightly less expensive to compute and can be hidden, shown, and placed in a
-	/// skin.
-	/// <p>
-	/// See <a href="https://esotericsoftware.com/spine-points">Point Attachments</a> in the Spine User Guide.
+	/// <para>
+	/// Stores the current pose for an IK constraint. An IK constraint adjusts the rotation of 1 or 2 constrained bones so the tip of
+	/// the last bone is as close to the target bone as possible.</para>
+	/// <para>
+	/// See <a href="http://esotericsoftware.com/spine-ik-constraints">IK constraints</a> in the Spine User Guide.</para>
 	/// </summary>
-	public class PointAttachment : Attachment {
-		internal float x, y, rotation;
-		/// <summary>The local x position.</summary>
-		public float X { get { return x; } set { x = value; } }
-		/// <summary>The local y position.</summary>
-		public float Y { get { return y; } set { y = value; } }
-		/// <summary>The local rotation in degrees, counter clockwise.</summary>
-		public float Rotation { get { return rotation; } set { rotation = value; } }
+	public abstract class Constraint<T, D, P> : PosedActive<D, P>, IUpdate, IConstraint
+		where T : Constraint<T, D, P>
+		where D : ConstraintData<T, P>
+		where P : IPose<P> {
 
-		public PointAttachment (string name)
-			: base(name) {
+		public Constraint (D data, P pose, P constrained)
+			: base(data, pose, constrained) {
 		}
 
-		/// <summary>Copy constructor.</summary>
-		protected PointAttachment (PointAttachment other)
-			: base(other) {
-			x = other.x;
-			y = other.y;
-			rotation = other.rotation;
-		}
-
-		/// <summary>Computes the world position from the local position.</summary>
-		public void ComputeWorldPosition (BonePose bone, out float ox, out float oy) {
-			bone.LocalToWorld(this.x, this.y, out ox, out oy);
-		}
-
-		/// <summary>Computes the world rotation from the local rotation.</summary>
-		public float ComputeWorldRotation (BonePose bone) {
-			float r = rotation * MathUtils.DegRad, cos = (float)Math.Cos(r), sin = (float)Math.Sin(r);
-			float x = cos * bone.a + sin * bone.b;
-			float y = cos * bone.c + sin * bone.d;
-			return MathUtils.Atan2Deg(y, x);
-		}
-
-		public override Attachment Copy () {
-			return new PointAttachment(this);
-		}
+		public IConstraintData IData { get { return data; } }
+		abstract public IConstraint Copy (Skeleton skeleton);
+		abstract public void Sort (Skeleton skeleton);
+		public virtual bool IsSourceActive { get { return true; } }
+		abstract public void Update (Skeleton skeleton, Physics physics);
 	}
 }

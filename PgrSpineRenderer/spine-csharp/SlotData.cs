@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,105 +27,39 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+#if UNITY_5_3_OR_NEWER
+#define IS_UNITY
+#endif
 
-public class SlotData
-{
-    internal string attachmentName;
-    internal BlendMode blendMode;
-    internal BoneData boneData;
-    internal bool hasSecondColor;
-    internal int index;
-    internal string name;
-    internal float r = 1, g = 1, b = 1, a = 1;
-    internal float r2, g2, b2;
+using System;
 
-    public SlotData(int index, string name, BoneData boneData)
-    {
-        if (index < 0) throw new ArgumentException("index must be >= 0.", "index");
-        if (name == null) throw new ArgumentNullException("name", "name cannot be null.");
-        if (boneData == null) throw new ArgumentNullException("boneData", "boneData cannot be null.");
-        this.index = index;
-        this.name = name;
-        this.boneData = boneData;
-    }
+namespace Spine {
+	public class SlotData : PosedData<SlotPose> {
+		internal int index;
+		internal BoneData boneData;
+		internal string attachmentName;
+		internal BlendMode blendMode;
 
-    /// <summary>The index of the slot in <see cref="Skeleton.Slots" />.</summary>
-    public int Index => index;
+		// Nonessential.
+		// bool visible = true;
 
-    /// <summary>The name of the slot, which is unique across all slots in the skeleton.</summary>
-    public string Name => name;
+		public SlotData (int index, String name, BoneData boneData)
+			: base(name, new SlotPose()) {
+			if (index < 0) throw new ArgumentException("index must be >= 0.", "index");
+			if (boneData == null) throw new ArgumentNullException("boneData", "boneData cannot be null.");
+			this.index = index;
+			this.boneData = boneData;
+		}
 
-    /// <summary>The bone this slot belongs to.</summary>
-    public BoneData BoneData => boneData;
+		/// <summary>The <see cref="Skeleton.Slots"/> index.</summary>
+		public int Index { get { return index; } }
 
-    public float R
-    {
-        get => r;
-        set => r = value;
-    }
+		/// <summary>The bone this slot belongs to.</summary>
+		public BoneData BoneData { get { return boneData; } }
 
-    public float G
-    {
-        get => g;
-        set => g = value;
-    }
-
-    public float B
-    {
-        get => b;
-        set => b = value;
-    }
-
-    public float A
-    {
-        get => a;
-        set => a = value;
-    }
-
-    public float R2
-    {
-        get => r2;
-        set => r2 = value;
-    }
-
-    public float G2
-    {
-        get => g2;
-        set => g2 = value;
-    }
-
-    public float B2
-    {
-        get => b2;
-        set => b2 = value;
-    }
-
-    public bool HasSecondColor
-    {
-        get => hasSecondColor;
-        set => hasSecondColor = value;
-    }
-
-    /// <summary>
-    ///     The name of the attachment that is visible for this slot in the setup pose, or null if no attachment is
-    ///     visible.
-    /// </summary>
-    public string AttachmentName
-    {
-        get => attachmentName;
-        set => attachmentName = value;
-    }
-
-    /// <summary>The blend mode for drawing the slot's attachment.</summary>
-    public BlendMode BlendMode
-    {
-        get => blendMode;
-        set => blendMode = value;
-    }
-
-    public override string ToString()
-    {
-        return name;
-    }
+		/// <summary>The name of the attachment that is visible for this slot in the setup pose, or null if no attachment is visible.</summary>
+		public String AttachmentName { get { return attachmentName; } set { attachmentName = value; } }
+		/// <summary>The blend mode for drawing the slot's attachment.</summary>
+		public BlendMode BlendMode { get { return blendMode; } set { blendMode = value; } }
+	}
 }

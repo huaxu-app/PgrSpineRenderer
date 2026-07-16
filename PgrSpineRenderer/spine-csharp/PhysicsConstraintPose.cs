@@ -30,49 +30,36 @@
 using System;
 
 namespace Spine {
+
 	/// <summary>
-	/// An attachment which is a single point and a rotation. This can be used to spawn projectiles, particles, etc. A bone can be
-	/// used in similar ways, but a PointAttachment is slightly less expensive to compute and can be hidden, shown, and placed in a
-	/// skin.
-	/// <p>
-	/// See <a href="https://esotericsoftware.com/spine-points">Point Attachments</a> in the Spine User Guide.
+	/// Stores a pose for a physics constraint.
 	/// </summary>
-	public class PointAttachment : Attachment {
-		internal float x, y, rotation;
-		/// <summary>The local x position.</summary>
-		public float X { get { return x; } set { x = value; } }
-		/// <summary>The local y position.</summary>
-		public float Y { get { return y; } set { y = value; } }
-		/// <summary>The local rotation in degrees, counter clockwise.</summary>
-		public float Rotation { get { return rotation; } set { rotation = value; } }
+	public class PhysicsConstraintPose : IPose<PhysicsConstraintPose> {
+		internal float inertia, strength, damping, massInverse, wind, gravity, mix;
 
-		public PointAttachment (string name)
-			: base(name) {
+		public void Set (PhysicsConstraintPose pose) {
+			inertia = pose.inertia;
+			strength = pose.strength;
+			damping = pose.damping;
+			massInverse = pose.massInverse;
+			wind = pose.wind;
+			gravity = pose.gravity;
+			mix = pose.mix;
 		}
 
-		/// <summary>Copy constructor.</summary>
-		protected PointAttachment (PointAttachment other)
-			: base(other) {
-			x = other.x;
-			y = other.y;
-			rotation = other.rotation;
-		}
-
-		/// <summary>Computes the world position from the local position.</summary>
-		public void ComputeWorldPosition (BonePose bone, out float ox, out float oy) {
-			bone.LocalToWorld(this.x, this.y, out ox, out oy);
-		}
-
-		/// <summary>Computes the world rotation from the local rotation.</summary>
-		public float ComputeWorldRotation (BonePose bone) {
-			float r = rotation * MathUtils.DegRad, cos = (float)Math.Cos(r), sin = (float)Math.Sin(r);
-			float x = cos * bone.a + sin * bone.b;
-			float y = cos * bone.c + sin * bone.d;
-			return MathUtils.Atan2Deg(y, x);
-		}
-
-		public override Attachment Copy () {
-			return new PointAttachment(this);
-		}
+		/// <summary>Controls how much bone movement is converted into physics movement.</summary>
+		public float Inertia { get { return inertia; } set { inertia = value; } }
+		/// <summary>The amount of force used to return properties to the unconstrained value.</summary>
+		public float Strength { get { return strength; } set { strength = value; } }
+		/// <summary>Reduces the speed of physics movements, with more of a reduction at higher speeds.</summary>
+		public float Damping { get { return damping; } set { damping = value; } }
+		/// <summary>Determines susceptibility to acceleration.</summary>
+		public float MassInverse { get { return massInverse; } set { massInverse = value; } }
+		/// <summary>Applies a constant force along the <see cref="Skeleton.WindX"/>, <see cref="Skeleton.WindY"/> vector.</summary>
+		public float Wind { get { return wind; } set { wind = value; } }
+		/// <summary>Applies a constant force along the <see cref="Skeleton.GravityX"/>, <see cref="Skeleton.GravityY"/> vector.</summary>
+		public float Gravity { get { return gravity; } set { gravity = value; } }
+		/// <summary>A percentage (0+) that controls the mix between the constrained and unconstrained poses.</summary>
+		public float Mix { get { return mix; } set { mix = value; } }
 	}
 }

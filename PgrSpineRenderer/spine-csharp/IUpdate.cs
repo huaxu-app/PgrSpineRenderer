@@ -27,22 +27,11 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-using System;
-
 namespace Spine {
-	/// <summary>Attachment that has a polygon for bounds checking.</summary>
-	public class BoundingBoxAttachment : VertexAttachment {
-		public BoundingBoxAttachment (string name)
-			: base(name) {
-		}
 
-		/// <summary>Copy constructor.</summary>
-		protected BoundingBoxAttachment (BoundingBoxAttachment other)
-			: base(other) {
-		}
-
-		public override Attachment Copy () {
-			return new BoundingBoxAttachment(this);
-		}
+	/// <summary>The interface for items updated by <see cref="Skeleton.UpdateWorldTransform(Physics)"/>.</summary>
+	public interface IUpdate {
+		/// <param name="physics">Determines how physics and other non-deterministic updates are applied.</param>
+		void Update (Skeleton skeleton, Physics physics);
 	}
 }

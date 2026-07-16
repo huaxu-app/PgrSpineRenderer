@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,189 +27,133 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+using System;
 
-/// <summary>
-///     >An attachment with vertices that are transformed by one or more bones and can be deformed by a slot's
-///     <see cref="Slot.Deform" />.
-/// </summary>
-public abstract class VertexAttachment : Attachment
-{
-    private static int nextID;
-    private static readonly object nextIdLock = new();
+namespace Spine {
+	/// <summary>Base class for an attachment with vertices that are transformed by one or more bones and can be deformed by
+	/// <see cref="SlotPose.Deform"/>.</summary>
+	public abstract class VertexAttachment : Attachment {
+		static int nextID = 0;
+		static readonly Object nextIdLock = new Object();
 
-    internal readonly int id;
-    internal int[] bones;
-    internal VertexAttachment deformAttachment;
-    internal float[] vertices;
-    internal int worldVerticesLength;
+		internal readonly int id;
+		internal int[] bones;
+		internal float[] vertices;
+		internal int worldVerticesLength;
 
-    public VertexAttachment(string name)
-        : base(name)
-    {
-        deformAttachment = this;
-        lock (nextIdLock)
-        {
-            id = (nextID++ & 65535) << 11;
-        }
-    }
+		/// <summary>Gets a unique ID for this attachment.</summary>
+		public int Id { get { return id; } }
+		/// <summary>The bones that affect the <see cref="Vertices"/>. The entries are, for each vertex, the number of bones affecting the
+		/// vertex followed by that many bone indices, which is <see cref="Skeleton.Bones"/> index. Null if this attachment has no
+		/// weights.</summary>
+		public int[] Bones { get { return bones; } set { bones = value; } }
+		/// <summary>The vertex positions in the bone's coordinate system. For a non-weighted attachment, the values are <c>x,y</c> pairs
+		/// for each vertex. For a weighted attachment, the values are <c>x,y,weight</c> triplets for each bone affecting each
+		/// vertex.</summary>
+		public float[] Vertices { get { return vertices; } set { vertices = value; } }
+		public int WorldVerticesLength { get { return worldVerticesLength; } set { worldVerticesLength = value; } }
 
-    /// <summary>Gets a unique ID for this attachment.</summary>
-    public int Id => id;
+		public VertexAttachment (string name)
+			: base(name) {
 
-    public int[] Bones
-    {
-        get => bones;
-        set => bones = value;
-    }
+			lock (VertexAttachment.nextIdLock) {
+				id = VertexAttachment.nextID++;
+			}
+		}
 
-    public float[] Vertices
-    {
-        get => vertices;
-        set => vertices = value;
-    }
+		/// <summary>Copy constructor.</summary>
+		public VertexAttachment (VertexAttachment other)
+			: base(other) {
 
-    public int WorldVerticesLength
-    {
-        get => worldVerticesLength;
-        set => worldVerticesLength = value;
-    }
+			lock (VertexAttachment.nextIdLock) {
+				id = VertexAttachment.nextID++;
+			}
+			timelineAttachment = other.timelineAttachment;
+			if (other.bones != null) {
+				bones = new int[other.bones.Length];
+				Array.Copy(other.bones, 0, bones, 0, bones.Length);
+			} else
+				bones = null;
 
-    /// <summary>
-    ///     Deform keys for the deform attachment are also applied to this attachment.
-    ///     May be null if no deform keys should be applied.
-    /// </summary>
-    public VertexAttachment DeformAttachment
-    {
-        get => deformAttachment;
-        set => deformAttachment = value;
-    }
+			if (other.vertices != null) {
+				vertices = new float[other.vertices.Length];
+				Array.Copy(other.vertices, 0, vertices, 0, vertices.Length);
+			} else
+				vertices = null;
 
-    public void ComputeWorldVertices(Slot slot, float[] worldVertices)
-    {
-        ComputeWorldVertices(slot, 0, worldVerticesLength, worldVertices, 0);
-    }
+			worldVerticesLength = other.worldVerticesLength;
+		}
 
-    /// <summary>
-    ///     Transforms the attachment's local <see cref="Vertices" /> to world coordinates. If the slot's
-    ///     <see cref="Slot.Deform" /> is
-    ///     not empty, it is used to deform the vertices.
-    ///     <para />
-    ///     See <a href="http://esotericsoftware.com/spine-runtime-skeletons#World-transforms">World transforms</a> in the
-    ///     Spine
-    ///     Runtimes Guide.
-    /// </summary>
-    /// <param name="start">
-    ///     The index of the first <see cref="Vertices" /> value to transform. Each vertex has 2 values, x and
-    ///     y.
-    /// </param>
-    /// <param name="count">
-    ///     The number of world vertex values to output. Must be less than or equal to
-    ///     <see cref="WorldVerticesLength" /> - start.
-    /// </param>
-    /// <param name="worldVertices">
-    ///     The output world vertices. Must have a length greater than or equal to
-    ///     <paramref name="offset" /> + <paramref name="count" />.
-    /// </param>
-    /// <param name="offset">The <paramref name="worldVertices" /> index to begin writing values.</param>
-    /// <param name="stride">The number of <paramref name="worldVertices" /> entries between the value pairs written.</param>
-    public void ComputeWorldVertices(Slot slot, int start, int count, float[] worldVertices, int offset, int stride = 2)
-    {
-        count = offset + (count >> 1) * stride;
-        var skeleton = slot.bone.skeleton;
-        var deformArray = slot.deform;
-        var vertices = this.vertices;
-        var bones = this.bones;
-        if (bones == null)
-        {
-            if (deformArray.Count > 0) vertices = deformArray.Items;
-            var bone = slot.bone;
-            float x = bone.worldX, y = bone.worldY;
-            float a = bone.a, b = bone.b, c = bone.c, d = bone.d;
-            for (int vv = start, w = offset; w < count; vv += 2, w += stride)
-            {
-                float vx = vertices[vv], vy = vertices[vv + 1];
-                worldVertices[w] = vx * a + vy * b + x;
-                worldVertices[w + 1] = vx * c + vy * d + y;
-            }
+		public void ComputeWorldVertices (Skeleton skeleton, Slot slot, float[] worldVertices) {
+			ComputeWorldVertices(skeleton, slot, 0, worldVerticesLength, worldVertices, 0);
+		}
 
-            return;
-        }
-
-        int v = 0, skip = 0;
-        for (var i = 0; i < start; i += 2)
-        {
-            var n = bones[v];
-            v += n + 1;
-            skip += n;
-        }
-
-        var skeletonBones = skeleton.bones.Items;
-        if (deformArray.Count == 0)
-        {
-            for (int w = offset, b = skip * 3; w < count; w += stride)
-            {
-                float wx = 0, wy = 0;
-                var n = bones[v++];
-                n += v;
-                for (; v < n; v++, b += 3)
-                {
-                    var bone = skeletonBones[bones[v]];
-                    float vx = vertices[b], vy = vertices[b + 1], weight = vertices[b + 2];
-                    wx += (vx * bone.a + vy * bone.b + bone.worldX) * weight;
-                    wy += (vx * bone.c + vy * bone.d + bone.worldY) * weight;
-                }
-
-                worldVertices[w] = wx;
-                worldVertices[w + 1] = wy;
-            }
-        }
-        else
-        {
-            var deform = deformArray.Items;
-            for (int w = offset, b = skip * 3, f = skip << 1; w < count; w += stride)
-            {
-                float wx = 0, wy = 0;
-                var n = bones[v++];
-                n += v;
-                for (; v < n; v++, b += 3, f += 2)
-                {
-                    var bone = skeletonBones[bones[v]];
-                    float vx = vertices[b] + deform[f], vy = vertices[b + 1] + deform[f + 1], weight = vertices[b + 2];
-                    wx += (vx * bone.a + vy * bone.b + bone.worldX) * weight;
-                    wy += (vx * bone.c + vy * bone.d + bone.worldY) * weight;
-                }
-
-                worldVertices[w] = wx;
-                worldVertices[w + 1] = wy;
-            }
-        }
-    }
-
-    ///<summary>Does not copy id (generated) or name (set on construction).</summary>
-    internal void CopyTo(VertexAttachment attachment)
-    {
-        if (bones != null)
-        {
-            attachment.bones = new int[bones.Length];
-            Array.Copy(bones, 0, attachment.bones, 0, bones.Length);
-        }
-        else
-        {
-            attachment.bones = null;
-        }
-
-        if (vertices != null)
-        {
-            attachment.vertices = new float[vertices.Length];
-            Array.Copy(vertices, 0, attachment.vertices, 0, vertices.Length);
-        }
-        else
-        {
-            attachment.vertices = null;
-        }
-
-        attachment.worldVerticesLength = worldVerticesLength;
-        attachment.deformAttachment = deformAttachment;
-    }
+		/// <summary>
+		/// Transforms the attachment's local <see cref="Vertices"/> to world coordinates. If <see cref="SlotPose.Deform"/>
+		/// is not empty, it is used to deform the vertices.
+		/// <para />
+		/// See <a href="http://esotericsoftware.com/spine-runtime-skeletons#World-transforms">World transforms</a> in the Spine
+		/// Runtimes Guide.
+		/// </summary>
+		/// <param name="start">The index of the first <see cref="Vertices"/> value to transform. Each vertex has 2 values, x and y.</param>
+		/// <param name="count">The number of world vertex values to output. Must be less than or equal to <see cref="WorldVerticesLength"/> - start.</param>
+		/// <param name="worldVertices">The output world vertices. Must have a length greater than or equal to <paramref name="offset"/> + <paramref name="count"/>.</param>
+		/// <param name="offset">The <paramref name="worldVertices"/> index to begin writing values.</param>
+		/// <param name="stride">The number of <paramref name="worldVertices"/> entries between the value pairs written.</param>
+		public virtual void ComputeWorldVertices (Skeleton skeleton, Slot slot, int start, int count, float[] worldVertices, int offset, int stride = 2) {
+			count = offset + (count >> 1) * stride;
+			ExposedList<float> deformArray = slot.AppliedPose.deform;
+			float[] vertices = this.vertices;
+			int[] bones = this.bones;
+			if (bones == null) {
+				if (deformArray.Count > 0) vertices = deformArray.Items;
+				BonePose bone = slot.bone.AppliedPose;
+				float x = bone.worldX, y = bone.worldY;
+				float a = bone.a, b = bone.b, c = bone.c, d = bone.d;
+				for (int vv = start, w = offset; w < count; vv += 2, w += stride) {
+					float vx = vertices[vv], vy = vertices[vv + 1];
+					worldVertices[w] = vx * a + vy * b + x;
+					worldVertices[w + 1] = vx * c + vy * d + y;
+				}
+				return;
+			}
+			int v = 0, skip = 0;
+			for (int i = 0; i < start; i += 2) {
+				int n = bones[v];
+				v += n + 1;
+				skip += n;
+			}
+			Bone[] skeletonBones = skeleton.bones.Items;
+			if (deformArray.Count == 0) {
+				for (int w = offset, b = skip * 3; w < count; w += stride) {
+					float wx = 0, wy = 0;
+					int n = bones[v++];
+					n += v;
+					for (; v < n; v++, b += 3) {
+						BonePose bone = skeletonBones[bones[v]].AppliedPose;
+						float vx = vertices[b], vy = vertices[b + 1], weight = vertices[b + 2];
+						wx += (vx * bone.a + vy * bone.b + bone.worldX) * weight;
+						wy += (vx * bone.c + vy * bone.d + bone.worldY) * weight;
+					}
+					worldVertices[w] = wx;
+					worldVertices[w + 1] = wy;
+				}
+			} else {
+				float[] deform = deformArray.Items;
+				for (int w = offset, b = skip * 3, f = skip << 1; w < count; w += stride) {
+					float wx = 0, wy = 0;
+					int n = bones[v++];
+					n += v;
+					for (; v < n; v++, b += 3, f += 2) {
+						BonePose bone = skeletonBones[bones[v]].AppliedPose;
+						float vx = vertices[b] + deform[f], vy = vertices[b + 1] + deform[f + 1], weight = vertices[b + 2];
+						wx += (vx * bone.a + vy * bone.b + bone.worldX) * weight;
+						wy += (vx * bone.c + vy * bone.d + bone.worldY) * weight;
+					}
+					worldVertices[w] = wx;
+					worldVertices[w + 1] = wy;
+				}
+			}
+		}
+	}
 }

@@ -1,8 +1,8 @@
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -27,48 +27,34 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+using System;
+using System.Collections.Generic;
 
-/// <summary>The base class for all constraint datas.</summary>
-public abstract class ConstraintData
-{
-    internal readonly string name;
-    internal int order;
-    internal bool skinRequired;
+namespace Spine {
+	/// <summary>
+	/// Determines how the <see cref="BonePose.scaleY"/> changes when <see cref="BonePose.ScaleX"/> is set.
+	/// </summary>
+	public enum ScaleYMode {
+		/// <summary>scaleY is not changed.</summary>
+		None,
+		/// <summary>scaleY is multiplied by the scaleX factor, preserving the bone's aspect ratio.</summary>
+		Uniform,
+		/// <summary>scaleY is divided by the scaleX factor, preserving the bone's area.</summary>
+		Volume
+	}
 
-    public ConstraintData(string name)
-    {
-        if (name == null) throw new ArgumentNullException("name", "name cannot be null.");
-        this.name = name;
-    }
+	public interface IConstraintData : IPosedData {
+		string Name { get; }
+		IConstraint Create (Skeleton skeleton);
+	}
 
-    /// <summary> The constraint's name, which is unique across all constraints in the skeleton of the same type.</summary>
-    public string Name => name;
+	public abstract class ConstraintData<T, P> : PosedData<P>, IConstraintData
+		where T : IConstraint
+		where P : IPose<P> {
+		public ConstraintData (string name, P setup)
+			: base(name, setup) {
+		}
 
-    /// <summary>
-    ///     The ordinal of this constraint for the order a skeleton's constraints will be applied by
-    ///     <see cref="Skeleton.UpdateWorldTransform()" />.
-    /// </summary>
-    public int Order
-    {
-        get => order;
-        set => order = value;
-    }
-
-    /// <summary>
-    ///     When true, <see cref="Skeleton.UpdateWorldTransform()" /> only updates this constraint if the
-    ///     <see cref="Skeleton.Skin" /> contains
-    ///     this constraint.
-    /// </summary>
-    /// <seealso cref="Skin.Constraints" />
-    public bool SkinRequired
-    {
-        get => skinRequired;
-        set => skinRequired = value;
-    }
-
-    public override string ToString()
-    {
-        return name;
-    }
+		abstract public IConstraint Create (Skeleton skeleton);
+	}
 }

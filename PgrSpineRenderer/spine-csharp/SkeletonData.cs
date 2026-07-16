@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,317 +27,171 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+using System;
 
-/// <summary>Stores the setup pose and all of the stateless data for a skeleton.</summary>
-public class SkeletonData
-{
-    internal ExposedList<Animation> animations = new();
-    internal ExposedList<BoneData> bones = new(); // Ordered parents first
-    internal Skin defaultSkin;
-    internal ExposedList<EventData> events = new();
+namespace Spine {
 
-    // Nonessential.
-    internal float fps;
-    internal ExposedList<IkConstraintData> ikConstraints = new();
-    internal string imagesPath, audioPath;
-    internal string name;
-    internal ExposedList<PathConstraintData> pathConstraints = new();
-    internal ExposedList<Skin> skins = new();
-    internal ExposedList<SlotData> slots = new(); // Setup pose draw order.
-    internal ExposedList<TransformConstraintData> transformConstraints = new();
-    internal string version, hash;
-    internal float x, y, width, height;
+	/// <summary>Stores the setup pose and all of the stateless data for a skeleton.</summary>
+	public class SkeletonData {
+		internal string name;
+		internal ExposedList<BoneData> bones = new ExposedList<BoneData>(); // Ordered parents first
+		internal ExposedList<SlotData> slots = new ExposedList<SlotData>(); // Setup pose draw order.
+		internal ExposedList<Skin> skins = new ExposedList<Skin>();
+		internal Skin defaultSkin;
+		internal ExposedList<EventData> events = new ExposedList<EventData>();
+		internal ExposedList<Animation> animations = new ExposedList<Animation>();
+		internal ExposedList<IConstraintData> constraints = new ExposedList<IConstraintData>();
+		internal float x, y, width, height, referenceScale = 100;
+		internal string version, hash;
 
-    public string Name
-    {
-        get => name;
-        set => name = value;
-    }
+		// Nonessential.
+		internal float fps;
+		internal string imagesPath, audioPath;
 
-    /// <summary>The skeleton's bones, sorted parent first. The root bone is always the first bone.</summary>
-    public ExposedList<BoneData> Bones => bones;
+		/// <summary>The skeleton's name, which by default is the name of the skeleton data file when possible, or null when a name hasn't been
+		/// set.</summary>
+		public string Name { get { return name; } set { name = value; } }
 
-    public ExposedList<SlotData> Slots => slots;
+		/// <summary>The skeleton's bones, sorted parent first. The root bone is always the first bone.</summary>
+		public ExposedList<BoneData> Bones { get { return bones; } }
 
-    /// <summary>All skins, including the default skin.</summary>
-    public ExposedList<Skin> Skins
-    {
-        get => skins;
-        set => skins = value;
-    }
+		/// <summary>The skeleton's slots in the setup pose draw order.</summary>
+		public ExposedList<SlotData> Slots { get { return slots; } }
 
-    /// <summary>
-    ///     The skeleton's default skin.
-    ///     By default this skin contains all attachments that were not in a skin in Spine.
-    /// </summary>
-    /// <return>May be null.</return>
-    public Skin DefaultSkin
-    {
-        get => defaultSkin;
-        set => defaultSkin = value;
-    }
+		/// <summary>All skins, including the default skin.</summary>
+		public ExposedList<Skin> Skins { get { return skins; } set { skins = value; } }
 
-    public ExposedList<EventData> Events
-    {
-        get => events;
-        set => events = value;
-    }
+		/// <summary>
+		/// The skeleton's default skin.
+		/// By default this skin contains all attachments that were not in a skin in Spine.
+		/// </summary>
+		/// <return>May be null.</return>
+		public Skin DefaultSkin { get { return defaultSkin; } set { defaultSkin = value; } }
 
-    public ExposedList<Animation> Animations
-    {
-        get => animations;
-        set => animations = value;
-    }
+		/// <summary>The skeleton's events.</summary>
+		public ExposedList<EventData> Events { get { return events; } set { events = value; } }
+		/// <summary>The skeleton's animations.</summary>
+		public ExposedList<Animation> Animations { get { return animations; } set { animations = value; } }
+		/// <summary>The skeleton's constraints.</summary>
+		public ExposedList<IConstraintData> Constraints { get { return constraints; } }
+		/// <summary>The skeleton's transform constraints.</summary>
 
-    public ExposedList<IkConstraintData> IkConstraints
-    {
-        get => ikConstraints;
-        set => ikConstraints = value;
-    }
+		public float X { get { return x; } set { x = value; } }
+		public float Y { get { return y; } set { y = value; } }
+		public float Width { get { return width; } set { width = value; } }
+		public float Height { get { return height; } set { height = value; } }
 
-    public ExposedList<TransformConstraintData> TransformConstraints
-    {
-        get => transformConstraints;
-        set => transformConstraints = value;
-    }
+		/// <summary> Baseline scale factor for applying distance-dependent effects on non-scalable properties, such as angle or scale. Default
+		/// is 100.</summary>
+		public float ReferenceScale { get { return referenceScale; } set { referenceScale = value; } }
 
-    public ExposedList<PathConstraintData> PathConstraints
-    {
-        get => pathConstraints;
-        set => pathConstraints = value;
-    }
+		/// <summary>The Spine version used to export this data, or null.</summary>
+		public string Version { get { return version; } set { version = value; } }
 
-    public float X
-    {
-        get => x;
-        set => x = value;
-    }
+		/// <summary>The skeleton data hash. This value will change if any of the skeleton data has changed.
+		/// May be null.</summary>
+		public string Hash { get { return hash; } set { hash = value; } }
 
-    public float Y
-    {
-        get => y;
-        set => y = value;
-    }
+		/// <summary>The path to the images folder as defined in Spine, or null if nonessential data was not exported.</summary>
+		public string ImagesPath { get { return imagesPath; } set { imagesPath = value; } }
 
-    public float Width
-    {
-        get => width;
-        set => width = value;
-    }
+		/// <summary>The path to the audio folder as defined in Spine, or null if nonessential data was not exported.</summary>
+		public string AudioPath { get { return audioPath; } set { audioPath = value; } }
 
-    public float Height
-    {
-        get => height;
-        set => height = value;
-    }
+		/// <summary>The dopesheet FPS in Spine, or zero if nonessential data was not exported.</summary>
+		public float Fps { get { return fps; } set { fps = value; } }
 
-    /// <summary>The Spine version used to export this data, or null.</summary>
-    public string Version
-    {
-        get => version;
-        set => version = value;
-    }
+		// --- Bones
+		/// <summary>
+		/// Finds a bone by comparing each bone's name.
+		/// It is more efficient to cache the results of this method than to call it multiple times.</summary>
+		/// <returns>May be null.</returns>
+		public BoneData FindBone (string boneName) {
+			if (boneName == null) throw new ArgumentNullException("boneName", "boneName cannot be null.");
+			BoneData[] bones = this.bones.Items;
+			for (int i = 0, n = this.bones.Count; i < n; i++) {
+				BoneData bone = bones[i];
+				if (bone.name == boneName) return bone;
+			}
+			return null;
+		}
 
-    public string Hash
-    {
-        get => hash;
-        set => hash = value;
-    }
+		// --- Slots
+		/// <returns>May be null.</returns>
+		public SlotData FindSlot (string slotName) {
+			if (slotName == null) throw new ArgumentNullException("slotName", "slotName cannot be null.");
+			SlotData[] slots = this.slots.Items;
+			for (int i = 0, n = this.slots.Count; i < n; i++) {
+				SlotData slot = slots[i];
+				if (slot.name == slotName) return slot;
+			}
+			return null;
+		}
 
-    /// <summary>
-    ///     The path to the images directory as defined in Spine. Available only when nonessential data was exported. May
-    ///     be null
-    /// </summary>
-    public string ImagesPath
-    {
-        get => imagesPath;
-        set => imagesPath = value;
-    }
+		// --- Skins
+		/// <returns>May be null.</returns>
+		public Skin FindSkin (string skinName) {
+			if (skinName == null) throw new ArgumentNullException("skinName", "skinName cannot be null.");
+			foreach (Skin skin in skins)
+				if (skin.name == skinName) return skin;
+			return null;
+		}
 
-    /// <summary>
-    ///     The path to the audio directory defined in Spine. Available only when nonessential data was exported. May be
-    ///     null.
-    /// </summary>
-    public string AudioPath
-    {
-        get => audioPath;
-        set => audioPath = value;
-    }
+		// --- Events
+		/// <returns>May be null.</returns>
+		public EventData FindEvent (string eventDataName) {
+			if (eventDataName == null) throw new ArgumentNullException("eventDataName", "eventDataName cannot be null.");
+			foreach (EventData eventData in events)
+				if (eventData.name == eventDataName) return eventData;
+			return null;
+		}
 
-    /// <summary>
-    ///     The dopesheet FPS in Spine. Available only when nonessential data was exported.
-    /// </summary>
-    public float Fps
-    {
-        get => fps;
-        set => fps = value;
-    }
+		// --- Animations
+		/// <summary>
+		/// <para>Collects animations used by <see cref="SliderData">slider constraints</see>.</para>
+		/// <para>Slider animations are designed to be applied by slider constraints rather than on their own. Applications that have a user
+		/// choose an animation may want to exclude them.
+		/// </para></summary>
+		public ExposedList<Animation> FindSliderAnimations (ExposedList<Animation> animations) {
+			IConstraintData[] constraints = this.constraints.Items;
+			for (int i = 0, n = this.constraints.Count; i < n; i++) {
+				SliderData data = constraints[i] as SliderData;
+				if (data != null && data.animation != null)
+					animations.Add(data.animation);
+			}
+			return animations;
+		}
 
-    // --- Bones.
+		/// <summary>
+		/// Finds an animation by comparing each animation's name. It is more efficient to cache the results of this method than to
+		/// call it multiple times.</summary>
+		/// <returns>May be null.</returns>
+		public Animation FindAnimation (string animationName) {
+			if (animationName == null) throw new ArgumentNullException("animationName", "animationName cannot be null.");
+			Animation[] animations = this.animations.Items;
+			for (int i = 0, n = this.animations.Count; i < n; i++) {
+				Animation animation = animations[i];
+				if (animation.name == animationName) return animation;
+			}
+			return null;
+		}
 
-    /// <summary>
-    ///     Finds a bone by comparing each bone's name.
-    ///     It is more efficient to cache the results of this method than to call it multiple times.
-    /// </summary>
-    /// <returns>May be null.</returns>
-    public BoneData FindBone(string boneName)
-    {
-        if (boneName == null) throw new ArgumentNullException("boneName", "boneName cannot be null.");
-        var bones = this.bones;
-        var bonesItems = bones.Items;
-        for (int i = 0, n = bones.Count; i < n; i++)
-        {
-            var bone = bonesItems[i];
-            if (bone.name == boneName) return bone;
-        }
+		// --- Constraints
+		/// <summary>Finds a constraint of the specified type by comparing each constraint's name. It is more efficient to cache the
+		/// results of this method than to call it multiple times.</summary>
+		/// <returns>May be null.</returns>
+		public T FindConstraint<T> (String constraintName) where T : class, IConstraintData {
+			if (constraintName == null) throw new ArgumentNullException("constraintName", "constraintName cannot be null.");
+			IConstraintData[] constraints = this.constraints.Items;
+			for (int i = 0, n = this.constraints.Count; i < n; i++) {
+				T constraint = constraints[i] as T;
+				if (constraint != null && constraint.Name.Equals(constraintName)) return constraint;
+			}
+			return null;
+		}
 
-        return null;
-    }
-
-    /// <returns>-1 if the bone was not found.</returns>
-    public int FindBoneIndex(string boneName)
-    {
-        if (boneName == null) throw new ArgumentNullException("boneName", "boneName cannot be null.");
-        var bones = this.bones;
-        var bonesItems = bones.Items;
-        for (int i = 0, n = bones.Count; i < n; i++)
-            if (bonesItems[i].name == boneName)
-                return i;
-        return -1;
-    }
-
-    // --- Slots.
-
-    /// <returns>May be null.</returns>
-    public SlotData FindSlot(string slotName)
-    {
-        if (slotName == null) throw new ArgumentNullException("slotName", "slotName cannot be null.");
-        var slots = this.slots;
-        for (int i = 0, n = slots.Count; i < n; i++)
-        {
-            var slot = slots.Items[i];
-            if (slot.name == slotName) return slot;
-        }
-
-        return null;
-    }
-
-    /// <returns>-1 if the slot was not found.</returns>
-    public int FindSlotIndex(string slotName)
-    {
-        if (slotName == null) throw new ArgumentNullException("slotName", "slotName cannot be null.");
-        var slots = this.slots;
-        for (int i = 0, n = slots.Count; i < n; i++)
-            if (slots.Items[i].name == slotName)
-                return i;
-        return -1;
-    }
-
-    // --- Skins.
-
-    /// <returns>May be null.</returns>
-    public Skin FindSkin(string skinName)
-    {
-        if (skinName == null) throw new ArgumentNullException("skinName", "skinName cannot be null.");
-        foreach (var skin in skins)
-            if (skin.name == skinName)
-                return skin;
-        return null;
-    }
-
-    // --- Events.
-
-    /// <returns>May be null.</returns>
-    public EventData FindEvent(string eventDataName)
-    {
-        if (eventDataName == null) throw new ArgumentNullException("eventDataName", "eventDataName cannot be null.");
-        foreach (var eventData in events)
-            if (eventData.name == eventDataName)
-                return eventData;
-        return null;
-    }
-
-    // --- Animations.
-
-    /// <returns>May be null.</returns>
-    public Animation FindAnimation(string animationName)
-    {
-        if (animationName == null) throw new ArgumentNullException("animationName", "animationName cannot be null.");
-        var animations = this.animations;
-        for (int i = 0, n = animations.Count; i < n; i++)
-        {
-            var animation = animations.Items[i];
-            if (animation.name == animationName) return animation;
-        }
-
-        return null;
-    }
-
-    // --- IK constraints.
-
-    /// <returns>May be null.</returns>
-    public IkConstraintData FindIkConstraint(string constraintName)
-    {
-        if (constraintName == null) throw new ArgumentNullException("constraintName", "constraintName cannot be null.");
-        var ikConstraints = this.ikConstraints;
-        for (int i = 0, n = ikConstraints.Count; i < n; i++)
-        {
-            var ikConstraint = ikConstraints.Items[i];
-            if (ikConstraint.name == constraintName) return ikConstraint;
-        }
-
-        return null;
-    }
-
-    // --- Transform constraints.
-
-    /// <returns>May be null.</returns>
-    public TransformConstraintData FindTransformConstraint(string constraintName)
-    {
-        if (constraintName == null) throw new ArgumentNullException("constraintName", "constraintName cannot be null.");
-        var transformConstraints = this.transformConstraints;
-        for (int i = 0, n = transformConstraints.Count; i < n; i++)
-        {
-            var transformConstraint = transformConstraints.Items[i];
-            if (transformConstraint.name == constraintName) return transformConstraint;
-        }
-
-        return null;
-    }
-
-    // --- Path constraints.
-
-    /// <returns>May be null.</returns>
-    public PathConstraintData FindPathConstraint(string constraintName)
-    {
-        if (constraintName == null) throw new ArgumentNullException("constraintName", "constraintName cannot be null.");
-        var pathConstraints = this.pathConstraints;
-        for (int i = 0, n = pathConstraints.Count; i < n; i++)
-        {
-            var constraint = pathConstraints.Items[i];
-            if (constraint.name.Equals(constraintName)) return constraint;
-        }
-
-        return null;
-    }
-
-    /// <returns>-1 if the path constraint was not found.</returns>
-    public int FindPathConstraintIndex(string pathConstraintName)
-    {
-        if (pathConstraintName == null)
-            throw new ArgumentNullException("pathConstraintName", "pathConstraintName cannot be null.");
-        var pathConstraints = this.pathConstraints;
-        for (int i = 0, n = pathConstraints.Count; i < n; i++)
-            if (pathConstraints.Items[i].name.Equals(pathConstraintName))
-                return i;
-        return -1;
-    }
-
-    // ---
-
-    public override string ToString()
-    {
-        return name ?? base.ToString();
-    }
+		override public string ToString () {
+			return name ?? base.ToString();
+		}
+	}
 }

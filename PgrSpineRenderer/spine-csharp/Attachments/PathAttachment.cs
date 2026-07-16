@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,45 +27,39 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+using System;
+using System.Collections.Generic;
 
-public class PathAttachment : VertexAttachment
-{
-    internal bool closed, constantSpeed;
-    internal float[] lengths;
+namespace Spine {
+	public class PathAttachment : VertexAttachment {
+		internal float[] lengths;
+		internal bool closed, constantSpeed;
 
-    public PathAttachment(string name)
-        : base(name)
-    {
-    }
+		/// <summary>The length in the setup pose from the start of the path to the end of each curve.</summary>
+		public float[] Lengths { get { return lengths; } set { lengths = value; } }
+		/// <summary>If true, the start and end knots are connected.</summary>
+		public bool Closed { get { return closed; } set { closed = value; } }
+		/// <summary>If true, additional calculations are performed to make computing positions along the path more accurate so movement along
+		/// the path has a constant speed.</summary>
+		public bool ConstantSpeed { get { return constantSpeed; } set { constantSpeed = value; } }
 
-    /// <summary>The length in the setup pose from the start of the path to the end of each curve.</summary>
-    public float[] Lengths
-    {
-        get => lengths;
-        set => lengths = value;
-    }
+		public PathAttachment (String name)
+			: base(name) {
+		}
 
-    public bool Closed
-    {
-        get => closed;
-        set => closed = value;
-    }
+		/// <summary>Copy constructor.</summary>
+		protected PathAttachment (PathAttachment other)
+			: base(other) {
 
-    public bool ConstantSpeed
-    {
-        get => constantSpeed;
-        set => constantSpeed = value;
-    }
+			lengths = new float[other.lengths.Length];
+			Array.Copy(other.lengths, 0, lengths, 0, lengths.Length);
 
-    public override Attachment Copy()
-    {
-        var copy = new PathAttachment(Name);
-        CopyTo(copy);
-        copy.lengths = new float[lengths.Length];
-        Array.Copy(lengths, 0, copy.lengths, 0, lengths.Length);
-        copy.closed = closed;
-        copy.constantSpeed = constantSpeed;
-        return copy;
-    }
+			closed = other.closed;
+			constantSpeed = other.constantSpeed;
+		}
+
+		public override Attachment Copy () {
+			return new PathAttachment(this);
+		}
+	}
 }

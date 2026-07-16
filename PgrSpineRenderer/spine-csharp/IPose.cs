@@ -30,19 +30,9 @@
 using System;
 
 namespace Spine {
-	/// <summary>Attachment that has a polygon for bounds checking.</summary>
-	public class BoundingBoxAttachment : VertexAttachment {
-		public BoundingBoxAttachment (string name)
-			: base(name) {
-		}
-
-		/// <summary>Copy constructor.</summary>
-		protected BoundingBoxAttachment (BoundingBoxAttachment other)
-			: base(other) {
-		}
-
-		public override Attachment Copy () {
-			return new BoundingBoxAttachment(this);
-		}
+	/// <summary>An interface for an object representing a pose.</summary>
+	public interface IPose<P> {
+		/// <summary>Sets this pose to the specified pose.</summary>
+		void Set (P pose);
 	}
 }

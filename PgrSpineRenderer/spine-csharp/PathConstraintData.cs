@@ -1,9 +1,8 @@
-#pragma warning disable
 /******************************************************************************
  * Spine Runtimes License Agreement
- * Last updated January 1, 2020. Replaces all prior versions.
+ * Last updated April 5, 2025. Replaces all prior versions.
  *
- * Copyright (c) 2013-2020, Esoteric Software LLC
+ * Copyright (c) 2013-2026, Esoteric Software LLC
  *
  * Integration of the Spine Runtimes into software or otherwise creating
  * derivative works of the Spine Runtimes is permitted under the terms and
@@ -28,95 +27,42 @@
  * THE SPINE RUNTIMES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-namespace Spine;
+using System;
 
-public class PathConstraintData : ConstraintData
-{
-    internal ExposedList<BoneData> bones = new();
-    internal float offsetRotation;
-    internal float position, spacing, rotateMix, translateMix;
-    internal PositionMode positionMode;
-    internal RotateMode rotateMode;
-    internal SpacingMode spacingMode;
-    internal SlotData target;
+namespace Spine {
+	public class PathConstraintData : ConstraintData<PathConstraint, PathConstraintPose> {
+		internal ExposedList<BoneData> bones = new ExposedList<BoneData>();
+		internal SlotData slot;
+		internal PositionMode positionMode;
+		internal SpacingMode spacingMode;
+		internal RotateMode rotateMode;
+		internal float offsetRotation;
 
-    public PathConstraintData(string name) : base(name)
-    {
-    }
+		public PathConstraintData (string name)
+			: base(name, new PathConstraintPose()) {
+		}
 
-    public ExposedList<BoneData> Bones => bones;
+		override public IConstraint Create (Skeleton skeleton) {
+			return new PathConstraint(this, skeleton);
+		}
 
-    public SlotData Target
-    {
-        get => target;
-        set => target = value;
-    }
+		public ExposedList<BoneData> Bones { get { return bones; } }
+		public SlotData Slot { get { return slot; } set { slot = value; } }
+		public PositionMode PositionMode { get { return positionMode; } set { positionMode = value; } }
+		public SpacingMode SpacingMode { get { return spacingMode; } set { spacingMode = value; } }
+		public RotateMode RotateMode { get { return rotateMode; } set { rotateMode = value; } }
+		public float OffsetRotation { get { return offsetRotation; } set { offsetRotation = value; } }
+	}
 
-    public PositionMode PositionMode
-    {
-        get => positionMode;
-        set => positionMode = value;
-    }
+	public enum PositionMode {
+		Fixed, Percent
+	}
 
-    public SpacingMode SpacingMode
-    {
-        get => spacingMode;
-        set => spacingMode = value;
-    }
+	public enum SpacingMode {
+		Length, Fixed, Percent, Proportional
+	}
 
-    public RotateMode RotateMode
-    {
-        get => rotateMode;
-        set => rotateMode = value;
-    }
-
-    public float OffsetRotation
-    {
-        get => offsetRotation;
-        set => offsetRotation = value;
-    }
-
-    public float Position
-    {
-        get => position;
-        set => position = value;
-    }
-
-    public float Spacing
-    {
-        get => spacing;
-        set => spacing = value;
-    }
-
-    public float RotateMix
-    {
-        get => rotateMix;
-        set => rotateMix = value;
-    }
-
-    public float TranslateMix
-    {
-        get => translateMix;
-        set => translateMix = value;
-    }
-}
-
-public enum PositionMode
-{
-    Fixed,
-    Percent
-}
-
-public enum SpacingMode
-{
-    Length,
-    Fixed,
-    Percent
-}
-
-public enum RotateMode
-{
-    Tangent,
-    Chain,
-    ChainScale
+	public enum RotateMode {
+		Tangent, Chain, ChainScale
+	}
 }

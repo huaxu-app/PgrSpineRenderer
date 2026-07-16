@@ -28,51 +28,48 @@
  *****************************************************************************/
 
 using System;
+using System.Collections.Generic;
+using System.IO;
 
 namespace Spine {
+
 	/// <summary>
-	/// An attachment which is a single point and a rotation. This can be used to spawn projectiles, particles, etc. A bone can be
-	/// used in similar ways, but a PointAttachment is slightly less expensive to compute and can be hidden, shown, and placed in a
-	/// skin.
-	/// <p>
-	/// See <a href="https://esotericsoftware.com/spine-points">Point Attachments</a> in the Spine User Guide.
+	/// Base class for loading skeleton data from a file.
+	/// <para>
+	/// See<a href="http://esotericsoftware.com/spine-loading-skeleton-data#JSON-and-binary-data">JSON and binary data</a> in the
+	/// Spine Runtimes Guide.</para>
 	/// </summary>
-	public class PointAttachment : Attachment {
-		internal float x, y, rotation;
-		/// <summary>The local x position.</summary>
-		public float X { get { return x; } set { x = value; } }
-		/// <summary>The local y position.</summary>
-		public float Y { get { return y; } set { y = value; } }
-		/// <summary>The local rotation in degrees, counter clockwise.</summary>
-		public float Rotation { get { return rotation; } set { rotation = value; } }
+	public abstract class SkeletonLoader {
+		protected readonly AttachmentLoader attachmentLoader;
+		protected float scale = 1;
 
-		public PointAttachment (string name)
-			: base(name) {
+		/// <summary>Creates a skeleton loader that loads attachments using an <see cref="AtlasAttachmentLoader"/> with the specified atlas.
+		/// </summary>
+		public SkeletonLoader (params Atlas[] atlasArray) {
+			attachmentLoader = new AtlasAttachmentLoader(atlasArray);
 		}
 
-		/// <summary>Copy constructor.</summary>
-		protected PointAttachment (PointAttachment other)
-			: base(other) {
-			x = other.x;
-			y = other.y;
-			rotation = other.rotation;
+		/// <summary>Creates a skeleton loader that loads attachments using the specified attachment loader.
+		/// <para>See <a href='http://esotericsoftware.com/spine-loading-skeleton-data#JSON-and-binary-data'>Loading skeleton data</a> in the
+		/// Spine Runtimes Guide.</para></summary>
+		public SkeletonLoader (AttachmentLoader attachmentLoader) {
+			if (attachmentLoader == null) throw new ArgumentNullException("attachmentLoader", "attachmentLoader cannot be null.");
+			this.attachmentLoader = attachmentLoader;
 		}
 
-		/// <summary>Computes the world position from the local position.</summary>
-		public void ComputeWorldPosition (BonePose bone, out float ox, out float oy) {
-			bone.LocalToWorld(this.x, this.y, out ox, out oy);
+		/// <summary>Scales bone positions, image sizes, and translations as they are loaded. This allows different size images to be used at
+		/// runtime than were used in Spine.
+		/// <para>
+		/// See <a href="http://esotericsoftware.com/spine-loading-skeleton-data#Scaling">Scaling</a> in the Spine Runtimes Guide.</para>
+		/// </summary>
+		public float Scale {
+			get { return scale; }
+			set {
+				if (scale == 0) throw new ArgumentNullException("scale", "scale cannot be 0.");
+				this.scale = value;
+			}
 		}
 
-		/// <summary>Computes the world rotation from the local rotation.</summary>
-		public float ComputeWorldRotation (BonePose bone) {
-			float r = rotation * MathUtils.DegRad, cos = (float)Math.Cos(r), sin = (float)Math.Sin(r);
-			float x = cos * bone.a + sin * bone.b;
-			float y = cos * bone.c + sin * bone.d;
-			return MathUtils.Atan2Deg(y, x);
-		}
-
-		public override Attachment Copy () {
-			return new PointAttachment(this);
-		}
+		public abstract SkeletonData ReadSkeletonData (string path);
 	}
 }

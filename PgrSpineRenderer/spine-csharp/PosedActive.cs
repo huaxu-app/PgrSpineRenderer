@@ -30,19 +30,26 @@
 using System;
 
 namespace Spine {
-	/// <summary>Attachment that has a polygon for bounds checking.</summary>
-	public class BoundingBoxAttachment : VertexAttachment {
-		public BoundingBoxAttachment (string name)
-			: base(name) {
+	public interface IPosedActive {
+		bool Active { get; set; }
+	}
+
+	/// <summary>A posed object that may be active or inactive.</summary>
+	public class PosedActive<D, P> : Posed<D, P>, IPosedActive
+		where D : PosedData<P>
+		where P : IPose<P> {
+
+		internal bool active;
+
+		protected PosedActive (D data, P pose, P constrained)
+			: base(data, pose, constrained) {
+			SetupPose();
 		}
 
-		/// <summary>Copy constructor.</summary>
-		protected BoundingBoxAttachment (BoundingBoxAttachment other)
-			: base(other) {
-		}
-
-		public override Attachment Copy () {
-			return new BoundingBoxAttachment(this);
-		}
+		/// <summary>Returns false when this constraint won't be updated by
+		/// <see cref="Skeleton.UpdateWorldTransform(Physics)"/> because a skin is required and the
+		/// <see cref="Skeleton.Skin">active skin</see> does not contain this item. See <see cref="Skin.Bones"/>,
+		/// <see cref="Skin.Constraints"/>, <see cref="PosedData{P}.SkinRequired"/>, and <see cref="Skeleton.UpdateCache()"/>.</summary>
+		public bool Active { get { return active; } set { active = value; } }
 	}
 }
