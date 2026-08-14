@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Numerics;
 using SkiaSharp;
 using Spine;
 
@@ -26,49 +25,49 @@ public static class SpineDrawer
     {
         SKImage? lastTexture = null;
         var clipper = new SkeletonClipping();
+        var skeletonColor = skeleton.GetColor();
         var paint = new SKPaint
         {
             IsAntialias = true
         };
         canvas.Save();
 
-        foreach (var slot in skeleton.DrawOrder)
+        foreach (var slot in skeleton.DrawOrder.AppliedPose)
         {
-            var attachment = slot.Attachment;
+            var slotPose = slot.AppliedPose;
+            var attachment = slotPose.Attachment;
             if (attachment is null) continue;
 
             SKImage? texture;
-            AtlasRegion? region;
             var worldVertices = new float[8];
             float[] uvs;
             int[] triangles;
-            Vector4 attachmentColor;
+            Color32F attachmentColor;
 
             if (attachment is RegionAttachment regionAttachment)
             {
-                region = (regionAttachment.RendererObject as AtlasRegion)!;
-                texture = region.page.rendererObject as SKImage;
-                uvs = regionAttachment.UVs;
-                attachmentColor = new Vector4(regionAttachment.R, regionAttachment.G, regionAttachment.B,
-                    regionAttachment.A);
+                var index = regionAttachment.Sequence.ResolveIndex(slotPose);
+                texture = (regionAttachment.Sequence.GetRegion(index) as AtlasRegion)?.page.rendererObject as SKImage;
+                uvs = regionAttachment.Sequence.GetUVs(index);
+                attachmentColor = regionAttachment.GetColor();
 
-                regionAttachment.ComputeWorldVertices(slot.Bone, worldVertices, 0);
+                regionAttachment.ComputeWorldVertices(slot, regionAttachment.GetOffsets(slotPose), worldVertices, 0);
                 triangles = QuadTriangles;
             }
             else if (attachment is MeshAttachment meshAttachment)
             {
-                region = (meshAttachment.RendererObject as AtlasRegion)!;
-                texture = region.page.rendererObject as SKImage;
-                uvs = meshAttachment.UVs;
+                var index = meshAttachment.Sequence.ResolveIndex(slotPose);
+                texture = (meshAttachment.Sequence.GetRegion(index) as AtlasRegion)?.page.rendererObject as SKImage;
+                uvs = meshAttachment.Sequence.GetUVs(index);
                 if (worldVertices.Length < uvs.Length) worldVertices = new float[uvs.Length];
-                attachmentColor = new Vector4(meshAttachment.R, meshAttachment.G, meshAttachment.B, meshAttachment.A);
+                attachmentColor = meshAttachment.GetColor();
 
-                meshAttachment.ComputeWorldVertices(slot, worldVertices);
+                meshAttachment.ComputeWorldVertices(skeleton, slot, worldVertices);
                 triangles = meshAttachment.Triangles;
             }
             else if (attachment is ClippingAttachment clippingAttachment)
             {
-                clipper.ClipStart(slot, clippingAttachment);
+                clipper.ClipStart(skeleton, slot, clippingAttachment);
                 continue;
             }
             else
@@ -88,7 +87,6 @@ public static class SpineDrawer
             {
                 clipper.ClipTriangles(
                     worldVertices,
-                    worldVertices.Length,
                     triangles,
                     triangles.Length,
                     uvs
@@ -105,11 +103,12 @@ public static class SpineDrawer
             List<SKColor> colors = [];
             var indices = triangles.Select(x => (ushort)x).ToArray();
 
+            var slotColor = slotPose.GetColor();
             var color = new SKColorF(
-                skeleton.R * slot.R * attachmentColor.X,
-                skeleton.G * slot.G * attachmentColor.Y,
-                skeleton.B * slot.B * attachmentColor.Z,
-                skeleton.A * slot.A * attachmentColor.W
+                skeletonColor.r * slotColor.r * attachmentColor.r,
+                skeletonColor.g * slotColor.g * attachmentColor.g,
+                skeletonColor.b * slotColor.b * attachmentColor.b,
+                skeletonColor.a * slotColor.a * attachmentColor.a
             );
 
             for (var i = 0; i < Math.Min(worldVertices.Length, uvs.Length); i += 2)
@@ -120,7 +119,7 @@ public static class SpineDrawer
             }
 
             // Determine and set correct blend mode
-            paint.BlendMode = slot.data.BlendMode switch
+            paint.BlendMode = slot.Data.BlendMode switch
             {
                 BlendMode.Screen => SKBlendMode.Screen,
                 BlendMode.Additive => SKBlendMode.Plus,

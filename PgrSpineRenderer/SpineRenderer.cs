@@ -46,7 +46,9 @@ public class SpineRenderer
             ? new SkeletonBinary(atlas).ReadSkeletonData(rawPath)
             : new SkeletonJson(atlas).ReadSkeletonData($"{path}.json");
 
-        _animationSet.RegisterLayer(skeletonData.animations.Select(a => a.Name));
+        // Skip zero-duration animations (e.g. "Empty"); they can't be rendered and would
+        // otherwise reach the render set and throw EmptyAnimationException.
+        _animationSet.RegisterLayer(skeletonData.Animations.Where(a => a.Duration > 0).Select(a => a.Name));
         _skeletonData.Add((skeleton, skeletonData));
     }
 
@@ -94,7 +96,7 @@ public class SpineRenderer
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine("Failed to render video: " + e.Message);
+                Console.Error.WriteLine("Failed to render video: " + e);
                 sink.CompleteAdding();
                 ok = false;
             }
@@ -143,7 +145,7 @@ public class SpineRenderer
                 ScaleY = scale * -1
             };
 
-            skeleton.UpdateWorldTransform();
+            skeleton.UpdateWorldTransform(Physics.Update);
             return skeleton;
         }).ToArray();
     }
@@ -161,11 +163,11 @@ public class SpineRenderer
 
         var states = skeletons.Select(s =>
         {
-            var state = new AnimationState(new AnimationStateData(s.data));
-            var layerAnimationName = _animationSet.Resolve(s.data.animations.Select(m => m.name), animationName);
-            
-            var animation = s.data.animations.Find(m => m.name == layerAnimationName);
-            state.SetAnimation(0, animation.name, true);
+            var state = new AnimationState(new AnimationStateData(s.Data));
+            var layerAnimationName = _animationSet.Resolve(s.Data.Animations.Select(m => m.Name), animationName);
+
+            var animation = s.Data.Animations.Find(m => m.Name == layerAnimationName);
+            state.SetAnimation(0, animation.Name, true);
 
             if (duration == 0)
                 duration = animation.Duration;
@@ -177,7 +179,7 @@ public class SpineRenderer
 
             state.Update(0);
             state.Apply(s);
-            s.UpdateWorldTransform();
+            s.UpdateWorldTransform(Physics.Update);
             return state;
         }).ToArray();
 
@@ -214,14 +216,25 @@ public class SpineRenderer
                     skeleton.Y += follower.Offset.Y;
                 }
                 
-                skeleton.UpdateWorldTransform();
+                skeleton.UpdateWorldTransform(Physics.Update);
             }
 
             // Update all last known positions
             foreach (var follower in followers.Values)
                 follower.Update();
 
-            sink.Add(await _frameRenderer.Render(_canvasSize, skeletons), token);
+            var frame = await _frameRenderer.Render(_canvasSize, skeletons);
+            if (sink.IsAddingCompleted) break;
+            try
+            {
+                sink.Add(frame, token);
+            }
+            catch (InvalidOperationException)
+            {
+                // ffmpeg finished or failed and completed the sink; stop producing quietly
+                // so its error is the one that surfaces, not a cascade.
+                break;
+            }
         }
     }
 

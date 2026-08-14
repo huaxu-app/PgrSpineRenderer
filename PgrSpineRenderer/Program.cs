@@ -168,10 +168,19 @@ internal static class Program
 
         var render = new SpineRenderer(job.Renderer, job.Fps, index.Size,
             new SpineRenderer.RendererSettings { Quirk = index.RenderQuirk });
-        foreach (var skeleton in index.Spines)
-            render.AddSkeleton(skeleton, job.IndexDir);
-        foreach (var follower in index.BoneFollowers)
-            render.AddBoneFollower(follower);
+        try
+        {
+            foreach (var skeleton in index.Spines)
+                render.AddSkeleton(skeleton, job.IndexDir);
+            foreach (var follower in index.BoneFollowers)
+                render.AddBoneFollower(follower);
+        }
+        catch (Exception e)
+        {
+            // old 3.8 data will fail to parse.
+            await Console.Error.WriteLineAsync($"Skipping {index.Name}: failed to load skeletons: {e.Message}");
+            return;
+        }
 
         var ok = true;
         foreach (var animation in render.Animations)
