@@ -4,24 +4,22 @@ using SkiaSharp;
 namespace PgrSpineRenderer;
 
 /// <summary>
-/// Bastardised version of BitmapVideoFrameWrapper from FFMpegCore.Extensions.SkiaSharp,
-/// but instead of keeping an SKBitmap, we clone the bytes so that ffmpeg doesn't cause SkiaSharp to explode.
-///
-/// This isn't great, but it seems to work, which is more than the other experiments.
+///     Bastardised version of BitmapVideoFrameWrapper from FFMpegCore.Extensions.SkiaSharp,
+///     but instead of keeping an SKBitmap, we clone the bytes so that ffmpeg doesn't cause SkiaSharp to explode.
+///     This isn't great, but it seems to work, which is more than the other experiments.
 /// </summary>
 public class SkiaFrame(SKBitmap bitmap) : IVideoFrame
 {
+    public SKBitmap Bitmap { get; } = bitmap;
     public int Width { get; } = bitmap.Width;
 
     public int Height { get; } = bitmap.Height;
 
     public string Format { get; } = ConvertStreamFormat(bitmap.ColorType);
 
-    private SKBitmap Source = bitmap;
-
     public void Serialize(Stream stream)
     {
-        stream.Write(Source.GetPixelSpan());
+        stream.Write(Bitmap.GetPixelSpan());
     }
 
     public Task SerializeAsync(Stream stream, CancellationToken token)

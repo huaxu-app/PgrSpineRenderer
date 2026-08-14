@@ -15,10 +15,19 @@ public static class SpineDrawer
         foreach (var s in skeletons) Draw(surface.Canvas, s);
         surface.Flush();
         var image = surface.Snapshot();
-        var frame = new SkiaFrame(SKBitmap.FromImage(image));
+        var frame = new SkiaFrame(ToStraightAlpha(image));
         image.Dispose();
         Metrics.FrameDrawTime.Record(stopwatch.ElapsedMilliseconds);
         return frame;
+    }
+
+    private static SKBitmap ToStraightAlpha(SKImage image)
+    {
+        var info = new SKImageInfo(image.Width, image.Height, image.ColorType, SKAlphaType.Unpremul);
+        var bitmap = new SKBitmap(info);
+        return !image.ReadPixels(info, bitmap.GetPixels(), info.RowBytes, 0, 0)
+            ? throw new InvalidOperationException("Failed to read frame pixels out of the rendered image")
+            : bitmap;
     }
 
     private static void Draw(SKCanvas canvas, Skeleton skeleton)

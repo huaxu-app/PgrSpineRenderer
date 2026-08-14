@@ -1,9 +1,7 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
 using System.Threading.Channels;
 using OpenTK.Windowing.Desktop;
-using ShellProgressBar;
 using SkiaSharp;
 using Spine;
 
@@ -11,11 +9,11 @@ namespace PgrSpineRenderer.Rendering;
 
 public class Renderer : IFrameRenderer, IDisposable
 {
-    private readonly List<Thread> _workerThreads = new();
-    private readonly Channel<WorkItem> _workChannel = Channel.CreateUnbounded<WorkItem>();
-    private readonly AutoResetEvent _workAvailable = new(false);
-    private volatile bool _isRunning = true;
     private readonly object _syncLock = new();
+    private readonly AutoResetEvent _workAvailable = new(false);
+    private readonly Channel<WorkItem> _workChannel = Channel.CreateUnbounded<WorkItem>();
+    private readonly List<Thread> _workerThreads = new();
+    private volatile bool _isRunning = true;
 
     public Renderer(IEnumerable<IGLFWGraphicsContext> graphicsContexts)
     {
@@ -27,14 +25,41 @@ public class Renderer : IFrameRenderer, IDisposable
         }
     }
 
+    public void Dispose()
+    {
+        lock (_syncLock)
+        {
+            if (!_isRunning) return;
+            _isRunning = false;
+            _workAvailable.Set(); // Wake up worker thread to exit
+            foreach (var workerThread in _workerThreads) workerThread.Join();
+
+            _workAvailable.Dispose();
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    public async Task<SkiaFrame> Render(Vector2 canvasSize, Skeleton[] skeletons, CancellationToken token = default)
+    {
+        if (!_isRunning)
+            throw new InvalidOperationException("Worker has been disposed");
+
+        var workItem = new WorkItem(canvasSize, skeletons);
+        await _workChannel.Writer.WriteAsync(workItem, token);
+        _workAvailable.Set();
+
+        var sw = Stopwatch.StartNew();
+        var i = await workItem.CompletionSource.Task;
+        Metrics.FrameTotalTime.Record(sw.ElapsedMilliseconds);
+        return i;
+    }
+
     private void ThreadStart(IGLFWGraphicsContext graphicsContext)
     {
         graphicsContext.MakeCurrent();
         var context = GRContext.CreateGl();
-        if (context is null)
-        {
-            throw new ApplicationException("Context is null");
-        }
+        if (context is null) throw new ApplicationException("Context is null");
         Dictionary<Vector2, SKSurface> surfaces = new();
 
         while (_isRunning)
@@ -57,36 +82,6 @@ public class Renderer : IFrameRenderer, IDisposable
             {
                 workItem.CompletionSource.SetException(ex);
             }
-    }
-
-    public async Task<SkiaFrame> Render(Vector2 canvasSize, Skeleton[] skeletons, CancellationToken token = default)
-    {
-        if (!_isRunning)
-            throw new InvalidOperationException("Worker has been disposed");
-
-        var workItem = new WorkItem(canvasSize, skeletons);
-        await _workChannel.Writer.WriteAsync(workItem, token);
-        _workAvailable.Set();
-
-        var sw = Stopwatch.StartNew();
-        var i = await workItem.CompletionSource.Task;
-        Metrics.FrameTotalTime.Record(sw.ElapsedMilliseconds);
-        return i;
-    }
-
-    public void Dispose()
-    {
-        lock (_syncLock)
-        {
-            if (!_isRunning) return;
-            _isRunning = false;
-            _workAvailable.Set(); // Wake up worker thread to exit
-            foreach (var workerThread in _workerThreads) workerThread.Join();
-
-            _workAvailable.Dispose();
-        }
-
-        GC.SuppressFinalize(this);
     }
 
     private class WorkItem(Vector2 canvasSize, Skeleton[] skeletons)

@@ -11,7 +11,7 @@ public record Index
     public BoneFollower[] BoneFollowers { get; set; } = [];
     public RenderQuirk? RenderQuirk { get; set; }
     public string? DefaultAnimation { get; set; }
-};
+}
 
 [JsonConverter(typeof(JsonStringEnumConverter<RenderQuirk>))]
 public enum RenderQuirk

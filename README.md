@@ -22,8 +22,11 @@ Description:
   Animations will be written to the `render` directory in the same directory as the index file,
   with each animation being a separate video.
   
-  A symbolic link to the default animation will be created as `_default.{ext}`,
-  allowing for easy access to the default animation without knowing the name.
+  Each animation also gets a `{animation}.webp` poster image of its first frame,
+  for use as a placeholder while the video loads.
+  
+  Symbolic links to the default animation will be created as `_default.{ext}` and
+  `_default.webp`, allowing for easy access to the default animation without knowing the name.
   
   When multiple index files are specified, they will be rendered in parallel,
   depending on the number of threads specified.
@@ -47,4 +50,16 @@ Options:
   --version                                Show version information
   -?, -h, --help                           Show help and usage information
 ```
+
+## Backfilling poster images
+
+Renders produced before poster images existed have videos but no `.webp` files. To backfill an
+existing render tree without re-rendering anything:
+
+    ./scripts/backfill-keyframes.sh <root-dir>
+
+It walks the tree for `render` directories and pulls frame 0 out of each `.vp9.webm`. Pass `-n` for a
+dry run, or set `FORCE=1` to overwrite posters that already exist. Only vp9 is used as a source,
+because it is the default codec, so it is the one reliably present in a render tree, and it keeps
+alpha. Directories rendered as h264 only are skipped with a warning.
 

@@ -11,6 +11,8 @@ namespace PgrSpineRenderer;
 
 internal static class Program
 {
+    private const float DefaultFps = 30.0f;
+
     private static readonly Dictionary<CodecOption, IRenderCodec> Codecs = new()
     {
         { CodecOption.VP9, new VP9() },
@@ -19,8 +21,6 @@ internal static class Program
         { CodecOption.Mov, new Mov() }
     };
 
-    private const float DefaultFps = 30.0f;
-
     public static int Main(string[] args)
     {
         var rootCommand = new RootCommand("""
@@ -28,8 +28,11 @@ internal static class Program
                                           Animations will be written to the `render` directory in the same directory as the index file,
                                           with each animation being a separate video.
 
-                                          A symbolic link to the default animation will be created as `_default.{ext}`,
-                                          allowing for easy access to the default animation without knowing the name.
+                                          Each animation also gets a `{animation}.webp` poster image of its first frame,
+                                          for use as a placeholder while the video loads.
+
+                                          Symbolic links to the default animation will be created as `_default.{ext}` and
+                                          `_default.webp`, allowing for easy access to the default animation without knowing the name.
 
                                           When multiple index files are specified, they will be rendered in parallel,
                                           depending on the number of threads specified.
@@ -39,7 +42,7 @@ internal static class Program
         var fpsOption = new Option<float>("--fps")
         {
             Description = "The frames per second of the output video",
-            DefaultValueFactory = _ => DefaultFps,
+            DefaultValueFactory = _ => DefaultFps
         };
         rootCommand.Options.Add(fpsOption);
 
@@ -190,6 +193,7 @@ internal static class Program
             {
                 var sw = Stopwatch.StartNew();
                 await render.GenerateVideo(animation, outputPath, job.Codec, token);
+                await render.GenerateKeyframe(animation, Path.Combine(job.OutputPath, $"{animation}.webp"), token);
                 Console.WriteLine($"Rendered {index.Name} - {animation} in {sw.ElapsedMilliseconds / 1000}s");
             }
             catch (Exception e)
@@ -204,14 +208,26 @@ internal static class Program
             var defaultAnimation = index.DefaultAnimation
                                    ?? render.Animations.Find(e => e == "idle")
                                    ?? render.Animations.First();
-            var defaultPath = Path.Combine(job.OutputPath, $"_default.{job.Codec.Extension}");
-
-            if (File.Exists(defaultPath))
-                File.Delete(defaultPath);
-            File.CreateSymbolicLink(defaultPath, $"{defaultAnimation}.{job.Codec.Extension}");
+            Relink(Path.Combine(job.OutputPath, $"_default.{job.Codec.Extension}"),
+                $"{defaultAnimation}.{job.Codec.Extension}");
+            Relink(Path.Combine(job.OutputPath, "_default.webp"), $"{defaultAnimation}.webp");
         }
 
         if (ok && render.Animations.Count > 0) await job.WriteSha256();
+    }
+
+    /// <summary>
+    ///     Points <paramref name="path" /> at <paramref name="target" />, replacing whatever is there.
+    ///     File.Exists follows symlinks and only reports regular files, so a stale link resolving to a
+    ///     directory reads as false. The link survives the delete and CreateSymbolicLink then throws
+    ///     because something is already sitting at that name. LinkTarget sees the link itself, and it
+    ///     returns null rather than throwing when there is nothing at the path at all.
+    /// </summary>
+    private static void Relink(string path, string target)
+    {
+        if (new FileInfo(path).LinkTarget is not null || File.Exists(path))
+            File.Delete(path);
+        File.CreateSymbolicLink(path, target);
     }
 
     private struct RenderJob(

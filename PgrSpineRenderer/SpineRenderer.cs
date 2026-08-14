@@ -11,15 +11,14 @@ namespace PgrSpineRenderer;
 
 public class SpineRenderer
 {
-    private readonly List<(Entry entry, SkeletonData data)> _skeletonData = [];
-    private readonly List<BoneTrackerInfo> _boneFollowers = [];
     private readonly AnimationSet _animationSet = new();
-    public List<string> Animations => _animationSet.GetRenderSet();
-
-    private readonly IFrameRenderer _frameRenderer;
+    private readonly List<BoneTrackerInfo> _boneFollowers = [];
     private readonly Vector2 _canvasSize;
     private readonly float _fps;
+
+    private readonly IFrameRenderer _frameRenderer;
     private readonly RendererSettings _settings;
+    private readonly List<(Entry entry, SkeletonData data)> _skeletonData = [];
 
     public SpineRenderer(IFrameRenderer frameRenderer, float fps, Vector2? canvasSize, RendererSettings settings)
     {
@@ -29,6 +28,8 @@ public class SpineRenderer
         _canvasSize = (canvasSize ?? new Vector2(1920, 1080)) * settings.Scale;
         if (settings.Quirk is not null) Console.WriteLine("Using render quirk " + settings.Quirk);
     }
+
+    public List<string> Animations => _animationSet.GetRenderSet();
 
     /// <summary>
     ///     Add a skeleton to the renderer. Takes a *partial* path to the skeleton files, without extension.
@@ -46,9 +47,7 @@ public class SpineRenderer
             ? new SkeletonBinary(atlas).ReadSkeletonData(rawPath)
             : new SkeletonJson(atlas).ReadSkeletonData($"{path}.json");
 
-        // Skip zero-duration animations (e.g. "Empty"); they can't be rendered and would
-        // otherwise reach the render set and throw EmptyAnimationException.
-        _animationSet.RegisterLayer(skeletonData.Animations.Where(a => a.Duration > 0).Select(a => a.Name));
+        _animationSet.RegisterLayer(skeletonData.Animations.Select(a => (a.Name, a.Duration)));
         _skeletonData.Add((skeleton, skeletonData));
     }
 
@@ -124,8 +123,32 @@ public class SpineRenderer
         throw new Exception("Failed to render video");
     }
 
+    public async Task GenerateKeyframe(string animationName, string outputPath, CancellationToken token = default)
+    {
+        var (skeletons, states, _) = InitAnimation(animationName);
+        var followers = BoneFollowers(skeletons);
+
+        for (var j = 0; j < states.Length; j++)
+        {
+            var skeleton = skeletons[j];
+            states[j].Update(0);
+            states[j].Apply(skeleton);
+
+            if (followers.TryGetValue(j, out var follower))
+            {
+                skeleton.X += follower.Offset.X;
+                skeleton.Y += follower.Offset.Y;
+            }
+
+            skeleton.UpdateWorldTransform(Physics.Update);
+        }
+
+        var frame = await _frameRenderer.Render(_canvasSize, skeletons, token);
+        KeyframeWriter.Write(frame, _canvasSize / _settings.Scale, outputPath);
+    }
+
     /// <summary>
-    /// Take the skeletons and return instances prepared for rendering.
+    ///     Take the skeletons and return instances prepared for rendering.
     /// </summary>
     /// <returns></returns>
     private Skeleton[] Skeletons()
@@ -151,12 +174,10 @@ public class SpineRenderer
     }
 
     /// <summary>
-    /// Generator for the frames of a specific animation.
-    /// Initializes the skeletons and updates them for each frame,
-    /// and then draws them onto a bitmap.
+    ///     Build the skeletons and animation states for a named animation, stepped to t=0,
+    ///     and work out how long the animation runs for.
     /// </summary>
-    private async Task GenerateFrames(string animationName, BlockingCollection<SkiaFrame> sink,
-        CancellationToken token = default)
+    private (Skeleton[] Skeletons, AnimationState[] States, float Duration) InitAnimation(string animationName)
     {
         var duration = 0f;
         var skeletons = Skeletons();
@@ -186,6 +207,11 @@ public class SpineRenderer
         if (duration == 0)
             throw new EmptyAnimationException($"Animation {animationName} is empty");
 
+        return (skeletons, states, duration);
+    }
+
+    private Dictionary<int, SpineBoneOffsetTracker> BoneFollowers(Skeleton[] skeletons)
+    {
         var followers = new Dictionary<int, SpineBoneOffsetTracker>();
         foreach (var follower in _boneFollowers)
         {
@@ -193,6 +219,21 @@ public class SpineRenderer
             if (bone is null) continue;
             followers[follower.TargetIndex] = new SpineBoneOffsetTracker(bone);
         }
+
+        return followers;
+    }
+
+    /// <summary>
+    ///     Generator for the frames of a specific animation.
+    ///     Initializes the skeletons and updates them for each frame,
+    ///     and then draws them onto a bitmap.
+    /// </summary>
+    private async Task GenerateFrames(string animationName, BlockingCollection<SkiaFrame> sink,
+        CancellationToken token = default)
+    {
+        var (skeletons, states, duration) = InitAnimation(animationName);
+
+        var followers = BoneFollowers(skeletons);
 
         var frames = (int)Math.Ceiling(duration * _fps);
         var frameTime = 1.0f / _fps;
@@ -215,7 +256,7 @@ public class SpineRenderer
                     skeleton.X += follower.Offset.X;
                     skeleton.Y += follower.Offset.Y;
                 }
-                
+
                 skeleton.UpdateWorldTransform(Physics.Update);
             }
 
