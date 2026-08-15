@@ -31,6 +31,15 @@ public class SpineRenderer
 
     public List<string> Animations => _animationSet.GetRenderSet();
 
+    private Vector2 OutputSize
+    {
+        get
+        {
+            var size = _canvasSize / _settings.Scale;
+            return new Vector2((int)size.X & ~1, (int)size.Y & ~1);
+        }
+    }
+
     /// <summary>
     ///     Add a skeleton to the renderer. Takes a *partial* path to the skeleton files, without extension.
     /// </summary>
@@ -86,11 +95,11 @@ public class SpineRenderer
         {
             try
             {
-                ok = FFMpegArguments.FromPipeInput(new RawVideoPipeSource(sink.GetConsumingEnumerable())
+                ok = FFMpegArguments.FromPipeInput(new RawVideoPipeSource(Drain(sink.GetConsumingEnumerable()))
                     {
                         FrameRate = _fps
                     })
-                    .OutputToFile(outputPath, true, options => codec.Apply(options, _canvasSize / _settings.Scale))
+                    .OutputToFile(outputPath, true, options => codec.Apply(options, OutputSize))
                     .ProcessSynchronously();
             }
             catch (Exception e)
@@ -113,6 +122,9 @@ public class SpineRenderer
         {
             sink.CompleteAdding();
             await ffmpegThread;
+
+            // If ffmpeg bailed out the pipe stopped consuming, so anything still queued is ours to free.
+            foreach (var leftover in sink) leftover.Dispose();
         }
 
         if (ok && !token.IsCancellationRequested) return;
@@ -133,18 +145,26 @@ public class SpineRenderer
             var skeleton = skeletons[j];
             states[j].Update(0);
             states[j].Apply(skeleton);
-
-            if (followers.TryGetValue(j, out var follower))
-            {
-                skeleton.X += follower.Offset.X;
-                skeleton.Y += follower.Offset.Y;
-            }
-
             skeleton.UpdateWorldTransform(Physics.Update);
+
+            if (!followers.TryGetValue(j, out var follower)) continue;
+
+            skeleton.X += follower.Offset.X;
+            skeleton.Y += follower.Offset.Y;
+            skeleton.UpdateWorldTransform(Physics.Pose);
         }
 
-        var frame = await _frameRenderer.Render(_canvasSize, skeletons, token);
-        KeyframeWriter.Write(frame, _canvasSize / _settings.Scale, outputPath);
+        using var frame = await _frameRenderer.Render(_canvasSize, skeletons, token);
+        KeyframeWriter.Write(frame, OutputSize, outputPath);
+    }
+
+    private static IEnumerable<IVideoFrame> Drain(IEnumerable<SkiaFrame> frames)
+    {
+        foreach (var frame in frames)
+            using (frame)
+            {
+                yield return frame;
+            }
     }
 
     /// <summary>
@@ -215,9 +235,11 @@ public class SpineRenderer
         var followers = new Dictionary<int, SpineBoneOffsetTracker>();
         foreach (var follower in _boneFollowers)
         {
-            var bone = skeletons[follower.SourceIndex].FindBone(follower.Bone);
-            if (bone is null) continue;
-            followers[follower.TargetIndex] = new SpineBoneOffsetTracker(bone);
+            var tracker = SpineBoneOffsetTracker.Resolve(skeletons[follower.SourceIndex],
+                skeletons[follower.TargetIndex], follower.Bone);
+            if (tracker is null) continue;
+
+            followers[follower.TargetIndex] = tracker;
         }
 
         return followers;
@@ -250,19 +272,16 @@ public class SpineRenderer
 
                 var skeleton = skeletons[j];
                 state.Apply(skeleton);
-
-                if (followers.TryGetValue(j, out var follower))
-                {
-                    skeleton.X += follower.Offset.X;
-                    skeleton.Y += follower.Offset.Y;
-                }
-
                 skeleton.UpdateWorldTransform(Physics.Update);
-            }
 
-            // Update all last known positions
-            foreach (var follower in followers.Values)
-                follower.Update();
+                if (!followers.TryGetValue(j, out var follower)) continue;
+
+                // The offset is measured against this frame's pose, so the skeleton has to be posed
+                // first. Re-pose after moving it, without stepping physics a second time.
+                skeleton.X += follower.Offset.X;
+                skeleton.Y += follower.Offset.Y;
+                skeleton.UpdateWorldTransform(Physics.Pose);
+            }
 
             var frame = await _frameRenderer.Render(_canvasSize, skeletons);
             if (sink.IsAddingCompleted) break;

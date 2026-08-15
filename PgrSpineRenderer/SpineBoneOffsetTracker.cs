@@ -3,15 +3,27 @@ using Spine;
 
 namespace PgrSpineRenderer;
 
-public class SpineBoneOffsetTracker(Bone target)
+public class SpineBoneOffsetTracker(Bone source, Bone target)
 {
-    private Vector2 _lastPosition = new(target.AppliedPose.WorldX, target.AppliedPose.WorldY);
+    public Vector2 Offset => WorldPosition(source) - WorldPosition(target);
 
-    private Vector2 CurrentPosition => new(target.AppliedPose.WorldX, target.AppliedPose.WorldY);
-    public Vector2 Offset => CurrentPosition - _lastPosition;
-
-    public void Update()
+    public static SpineBoneOffsetTracker? Resolve(Skeleton sourceSkeleton, Skeleton targetSkeleton, string boneName)
     {
-        _lastPosition = CurrentPosition;
+        var source = sourceSkeleton.FindBone(boneName);
+        if (source is null) return null;
+
+        for (var bone = source; bone is not null; bone = bone.Parent)
+        {
+            var match = targetSkeleton.FindBone(bone.Data.Name);
+            if (match is not null) return new SpineBoneOffsetTracker(bone, match);
+        }
+
+        // Every skeleton has a root, so the walk normally terminates well before here.
+        return new SpineBoneOffsetTracker(source, targetSkeleton.RootBone);
+    }
+
+    private static Vector2 WorldPosition(Bone bone)
+    {
+        return new Vector2(bone.AppliedPose.WorldX, bone.AppliedPose.WorldY);
     }
 }

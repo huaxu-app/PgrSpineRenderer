@@ -8,7 +8,7 @@ namespace PgrSpineRenderer;
 ///     but instead of keeping an SKBitmap, we clone the bytes so that ffmpeg doesn't cause SkiaSharp to explode.
 ///     This isn't great, but it seems to work, which is more than the other experiments.
 /// </summary>
-public class SkiaFrame(SKBitmap bitmap) : IVideoFrame
+public class SkiaFrame(SKBitmap bitmap) : IVideoFrame, IDisposable
 {
     public SKBitmap Bitmap { get; } = bitmap;
     public int Width { get; } = bitmap.Width;
@@ -16,6 +16,12 @@ public class SkiaFrame(SKBitmap bitmap) : IVideoFrame
     public int Height { get; } = bitmap.Height;
 
     public string Format { get; } = ConvertStreamFormat(bitmap.ColorType);
+
+    public void Dispose()
+    {
+        Bitmap.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     public void Serialize(Stream stream)
     {
