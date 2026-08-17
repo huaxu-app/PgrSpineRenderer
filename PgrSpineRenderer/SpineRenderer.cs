@@ -56,7 +56,7 @@ public class SpineRenderer
             ? new SkeletonBinary(atlas).ReadSkeletonData(rawPath)
             : new SkeletonJson(atlas).ReadSkeletonData($"{path}.json");
 
-        _animationSet.RegisterLayer(skeletonData.Animations.Select(a => (a.Name, a.Duration)));
+        _animationSet.RegisterLayer(LayeredAnimations.Flatten(skeletonData));
         _skeletonData.Add((skeleton, skeletonData));
     }
 
@@ -205,10 +205,16 @@ public class SpineRenderer
         var states = skeletons.Select(s =>
         {
             var state = new AnimationState(new AnimationStateData(s.Data));
-            var layerAnimationName = _animationSet.Resolve(s.Data.Animations.Select(m => m.Name), animationName);
+            var available = LayeredAnimations.Flatten(s.Data).Select(m => m.Name);
+            var layerAnimationName = _animationSet.Resolve(available, animationName);
 
-            var animation = s.Data.Animations.Find(m => m.Name == layerAnimationName);
-            state.SetAnimation(0, animation.Name, true);
+            // Layered skeletons play their body, face and mouth parts together, one per track.
+            var tracks = LayeredAnimations.Tracks(s.Data, layerAnimationName);
+            for (var track = 0; track < tracks.Count; track++)
+                state.SetAnimation(track, tracks[track].Name, true);
+
+            // The body track is the one that dictates how long we render for.
+            var animation = tracks[0];
 
             if (duration == 0)
                 duration = animation.Duration;
