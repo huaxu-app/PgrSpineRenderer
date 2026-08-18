@@ -21,7 +21,7 @@ public class H264NV : IRenderCodec
         options
             .WithVideoCodec(codec)
             .WithConstantRateFactor(23)
-            .WithCustomArgument("-profile:v high -level 4.0")
+            .WithCustomArgument("-profile:v high")
             .ForcePixelFormat("yuv420p")
             .WithVideoFilters(f => f.Scale((int)size.X, (int)size.Y))
             .WithFastStart()

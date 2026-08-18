@@ -88,7 +88,8 @@ public static class SpineDrawer
             if (lastTexture != texture)
             {
                 lastTexture = texture;
-                paint.Shader = texture.ToShader();
+                paint.Shader = texture.ToShader(SKShaderTileMode.Clamp, SKShaderTileMode.Clamp,
+                    new SKSamplingOptions(SKCubicResampler.CatmullRom));
             }
 
 
