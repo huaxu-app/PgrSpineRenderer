@@ -18,7 +18,7 @@ public class AnimationSet
         // These are animations like "A", "B", "X", and are single-frame animations for lip-syncing
         // which is out of scope
         var layer = animations.Where(a => a.Name.Length > 1).ToList();
-        _layers.Add([..layer.Select(a => a.Name)]);
+        _layers.Add([.. layer.Select(a => a.Name)]);
 
         // Some layers have empty animations so they're static, just move around by others.
         // If all layers are empty, thats a problem

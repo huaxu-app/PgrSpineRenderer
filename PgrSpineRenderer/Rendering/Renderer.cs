@@ -40,12 +40,13 @@ public class Renderer : IFrameRenderer, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task<SkiaFrame> Render(Vector2 canvasSize, Skeleton[] skeletons, CancellationToken token = default)
+    public async Task<SkiaFrame> Render(Vector2 canvasSize, Vector2 outputSize, Skeleton[] skeletons,
+        CancellationToken token = default)
     {
         if (!_isRunning)
             throw new InvalidOperationException("Worker has been disposed");
 
-        var workItem = new WorkItem(canvasSize, skeletons);
+        var workItem = new WorkItem(canvasSize, outputSize, skeletons);
         await _workChannel.Writer.WriteAsync(workItem, token);
         _workAvailable.Set();
 
@@ -60,33 +61,33 @@ public class Renderer : IFrameRenderer, IDisposable
         graphicsContext.MakeCurrent();
         var context = GRContext.CreateGl();
         if (context is null) throw new ApplicationException("Context is null");
-        Dictionary<Vector2, SKSurface> surfaces = new();
+        Dictionary<(Vector2 canvas, Vector2 output), RenderTarget> targets = new();
 
         while (_isRunning)
         while (_workChannel.Reader.TryRead(out var workItem))
             try
             {
-                if (!surfaces.TryGetValue(workItem.CanvasSize, out var surface))
+                var key = (workItem.CanvasSize, workItem.OutputSize);
+                if (!targets.TryGetValue(key, out var target))
                 {
-                    surface = SKSurface.Create(context, false,
-                        new SKImageInfo((int)workItem.CanvasSize.X, (int)workItem.CanvasSize.Y));
-                    surfaces[workItem.CanvasSize] = surface;
+                    target = new RenderTarget(context, workItem.CanvasSize, workItem.OutputSize);
+                    targets[key] = target;
                 }
 
-                surface.Canvas.Clear();
-                var result = SpineDrawer.DrawJob(surface, workItem.Skeletons);
-
-                workItem.CompletionSource.SetResult(result);
+                workItem.CompletionSource.SetResult(target.Render(workItem.Skeletons));
             }
             catch (Exception ex)
             {
                 workItem.CompletionSource.SetException(ex);
             }
+
+        foreach (var target in targets.Values) target.Dispose();
     }
 
-    private class WorkItem(Vector2 canvasSize, Skeleton[] skeletons)
+    private class WorkItem(Vector2 canvasSize, Vector2 outputSize, Skeleton[] skeletons)
     {
         public Vector2 CanvasSize { get; } = canvasSize;
+        public Vector2 OutputSize { get; } = outputSize;
         public Skeleton[] Skeletons { get; } = skeletons;
 
         public TaskCompletionSource<SkiaFrame> CompletionSource { get; } =

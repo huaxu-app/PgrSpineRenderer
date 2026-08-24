@@ -12,6 +12,7 @@ namespace PgrSpineRenderer;
 internal static class Program
 {
     private const float DefaultFps = 30.0f;
+    private const int DefaultScale = 2;
 
     private static readonly Dictionary<CodecOption, IRenderCodec> Codecs = new()
     {
@@ -68,6 +69,13 @@ internal static class Program
 
         rootCommand.Options.Add(renderThreadsOption);
 
+        var scaleOption = new Option<int>("--scale", "-s")
+        {
+            DefaultValueFactory = _ => DefaultScale,
+            Description = "Supersampling factor: frames are rendered at this multiple of the output size"
+        };
+        rootCommand.Options.Add(scaleOption);
+
         var forceOption = new Option<bool>("--force", "-f")
         {
             Description = "Force rendering even if the index file has not changed"
@@ -117,6 +125,7 @@ internal static class Program
             result.GetRequiredValue(encodeThreadsOption),
             result.GetRequiredValue(renderThreadsOption),
             result.GetRequiredValue(linkDefaultOption),
+            result.GetRequiredValue(scaleOption),
             token
         ));
 
@@ -125,7 +134,8 @@ internal static class Program
 
 
     private static async Task Handler(FileInfo[] indexFiles, float fps, CodecOption codecOption, bool forceOption,
-        int encodeThreads, int renderThreads, bool linkDefaultAnimation, CancellationToken cancellationToken = default)
+        int encodeThreads, int renderThreads, bool linkDefaultAnimation, int scale,
+        CancellationToken cancellationToken = default)
     {
         var codec = Codecs[codecOption];
 
@@ -136,7 +146,7 @@ internal static class Program
             async (indexFile, token) =>
             {
                 var job = new RenderJob(indexFile, codec, renderer)
-                    { Fps = fps, Force = forceOption, LinkDefaultAnimation = linkDefaultAnimation };
+                    { Fps = fps, Force = forceOption, LinkDefaultAnimation = linkDefaultAnimation, Scale = scale };
                 await HandleIndex(job, token);
             });
     }
@@ -170,7 +180,7 @@ internal static class Program
         if (index is null) return;
 
         var render = new SpineRenderer(job.Renderer, job.Fps, index.Size,
-            new SpineRenderer.RendererSettings { Quirk = index.RenderQuirk });
+            new SpineRenderer.RendererSettings { Quirk = index.RenderQuirk, Scale = job.Scale });
         try
         {
             foreach (var skeleton in index.Spines)
@@ -205,7 +215,9 @@ internal static class Program
 
         if (job.LinkDefaultAnimation && render.Animations.Count > 0)
         {
-            var defaultAnimation = index.DefaultAnimation
+            // The index can name an animation we never render, usually an empty one, so only
+            // honour it when it actually made the render set. Otherwise the link dangles.
+            var defaultAnimation = render.Animations.Find(e => e == index.DefaultAnimation)
                                    ?? render.Animations.Find(e => e == "idle")
                                    ?? render.Animations.First();
             Relink(Path.Combine(job.OutputPath, $"_default.{job.Codec.Extension}"),
@@ -241,6 +253,7 @@ internal static class Program
         public readonly IFrameRenderer Renderer = renderer;
         public bool Force = false;
         public bool LinkDefaultAnimation = false;
+        public int Scale = DefaultScale;
 
         public string IndexDir => Path.GetRelativePath(Environment.CurrentDirectory, Index.DirectoryName ?? "");
         public string OutputPath => Path.Combine(IndexDir, "render");

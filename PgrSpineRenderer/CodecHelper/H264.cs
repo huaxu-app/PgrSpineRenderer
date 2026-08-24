@@ -16,7 +16,6 @@ public class H264 : IRenderCodec
             .WithConstantRateFactor(23)
             .WithCustomArgument("-profile:v high")
             .ForcePixelFormat("yuv420p")
-            .WithVideoFilters(f => f.Scale((int)size.X, (int)size.Y))
             .WithFastStart()
             .DisableChannel(Channel.Audio);
     }

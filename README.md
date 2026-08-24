@@ -46,6 +46,8 @@ Options:
   --encode-threads, --et <encode-threads>  The number of threads to use for encoding. Might be capped by 
                                            hardware limits (nvenc) [default: 1]
   --render-threads, --rt <render-threads>  The number of threads to use for rendering [default: 1]
+  -s, --scale <scale>                      Supersampling factor: frames are rendered at this multiple 
+                                           of the output size [default: 2]
   -f, --force                              Force rendering even if the index file has not changed
   --version                                Show version information
   -?, -h, --help                           Show help and usage information

@@ -15,11 +15,11 @@ namespace PgrSpineRenderer;
 /// </summary>
 public static class LayeredAnimations
 {
-    // Track order: body first, face and mouth layer on top of it.
-    private static readonly string[] Prefixes = ["By/", "Fa/", "Mo/"];
-
     // The body is what decides the name and length of the animation.
     private const string BodyPrefix = "By/";
+
+    // Track order: body first, face and mouth layer on top of it.
+    private static readonly string[] Prefixes = ["By/", "Fa/", "Mo/"];
 
     /// <summary>
     ///     The animations a skeleton offers, with the duration of their body track.
@@ -42,10 +42,12 @@ public static class LayeredAnimations
     {
         if (!IsLayered(data)) return [data.Animations.Find(a => a.Name == name)];
 
-        return Prefixes
-            .Select(prefix => data.Animations.Find(a => a.Name == prefix + name))
-            .OfType<Animation>()
-            .ToList();
+        return
+        [
+            .. Prefixes
+                .Select(prefix => data.Animations.Find(a => a.Name == prefix + name))
+                .OfType<Animation>()
+        ];
     }
 
     /// <summary>

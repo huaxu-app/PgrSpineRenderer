@@ -1,7 +1,7 @@
 using FFMpegCore.Pipes;
 using SkiaSharp;
 
-namespace PgrSpineRenderer;
+namespace PgrSpineRenderer.Rendering;
 
 /// <summary>
 ///     Bastardised version of BitmapVideoFrameWrapper from FFMpegCore.Extensions.SkiaSharp,
@@ -10,18 +10,21 @@ namespace PgrSpineRenderer;
 /// </summary>
 public class SkiaFrame(SKBitmap bitmap) : IVideoFrame, IDisposable
 {
+    private const SKColorType FrameColorType = SKColorType.Rgba8888;
+
     public SKBitmap Bitmap { get; } = bitmap;
-    public int Width { get; } = bitmap.Width;
-
-    public int Height { get; } = bitmap.Height;
-
-    public string Format { get; } = ConvertStreamFormat(bitmap.ColorType);
 
     public void Dispose()
     {
         Bitmap.Dispose();
         GC.SuppressFinalize(this);
     }
+
+    public int Width { get; } = bitmap.Width;
+
+    public int Height { get; } = bitmap.Height;
+
+    public string Format { get; } = ConvertStreamFormat(bitmap.ColorType);
 
     public void Serialize(Stream stream)
     {
@@ -32,6 +35,17 @@ public class SkiaFrame(SKBitmap bitmap) : IVideoFrame, IDisposable
     {
         Serialize(stream);
         return Task.CompletedTask;
+    }
+
+    public static SkiaFrame FromImage(SKImage image)
+    {
+        var info = new SKImageInfo(image.Width, image.Height, FrameColorType, SKAlphaType.Unpremul,
+            SKColorSpace.CreateSrgb());
+        var bitmap = new SKBitmap(info);
+
+        return !image.ReadPixels(info, bitmap.GetPixels(), info.RowBytes, 0, 0)
+            ? throw new InvalidOperationException("Failed to read frame pixels out of the rendered image")
+            : new SkiaFrame(bitmap);
     }
 
     private static string ConvertStreamFormat(SKColorType fmt)

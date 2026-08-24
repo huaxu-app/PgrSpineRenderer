@@ -154,7 +154,7 @@ public class SpineRenderer
             skeleton.UpdateWorldTransform(Physics.Pose);
         }
 
-        using var frame = await _frameRenderer.Render(_canvasSize, skeletons, token);
+        using var frame = await _frameRenderer.Render(_canvasSize, OutputSize, skeletons, token);
         KeyframeWriter.Write(frame, OutputSize, outputPath);
     }
 
@@ -173,24 +173,27 @@ public class SpineRenderer
     /// <returns></returns>
     private Skeleton[] Skeletons()
     {
-        return _skeletonData.Select(pair =>
-        {
-            var scale = pair.entry.Scale * _settings.Scale;
-            var position = _canvasSize * (Vector2.One - pair.entry.Pivot) +
-                           pair.entry.Position.GetValueOrDefault() * new Vector2(1, -1) * _settings.Scale;
-
-            var skeleton = new Skeleton(pair.data)
+        return
+        [
+            .. _skeletonData.Select(pair =>
             {
-                X = position.X,
-                Y = position.Y,
-                ScaleX = scale,
-                // PGR flips the Y axis
-                ScaleY = scale * -1
-            };
+                var scale = pair.entry.Scale * _settings.Scale;
+                var position = _canvasSize * (Vector2.One - pair.entry.Pivot) +
+                               pair.entry.Position.GetValueOrDefault() * new Vector2(1, -1) * _settings.Scale;
 
-            skeleton.UpdateWorldTransform(Physics.Update);
-            return skeleton;
-        }).ToArray();
+                var skeleton = new Skeleton(pair.data)
+                {
+                    X = position.X,
+                    Y = position.Y,
+                    ScaleX = scale,
+                    // PGR flips the Y axis
+                    ScaleY = scale * -1
+                };
+
+                skeleton.UpdateWorldTransform(Physics.Update);
+                return skeleton;
+            })
+        ];
     }
 
     /// <summary>
@@ -230,10 +233,9 @@ public class SpineRenderer
             return state;
         }).ToArray();
 
-        if (duration == 0)
-            throw new EmptyAnimationException($"Animation {animationName} is empty");
-
-        return (skeletons, states, duration);
+        return duration == 0
+            ? throw new EmptyAnimationException($"Animation {animationName} is empty")
+            : (skeletons, states, duration);
     }
 
     private Dictionary<int, SpineBoneOffsetTracker> BoneFollowers(Skeleton[] skeletons)
@@ -289,7 +291,7 @@ public class SpineRenderer
                 skeleton.UpdateWorldTransform(Physics.Pose);
             }
 
-            var frame = await _frameRenderer.Render(_canvasSize, skeletons);
+            var frame = await _frameRenderer.Render(_canvasSize, OutputSize, skeletons, token);
             if (sink.IsAddingCompleted) break;
             try
             {

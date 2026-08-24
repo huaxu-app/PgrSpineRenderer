@@ -13,7 +13,6 @@ public class Mov : IRenderCodec
     {
         options
             .WithVideoCodec("qtrle")
-            .WithVideoFilters(f => f.Scale((int)size.X, (int)size.Y))
             .DisableChannel(Channel.Audio);
     }
 }

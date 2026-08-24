@@ -32,9 +32,6 @@ public class VP9 : IRenderCodec
             .WithConstantRateFactor(31)
             .WithCustomArgument("-tile-columns 2 -threads 4")
             .ForceFormat(VideoType.WebM)
-            .WithVideoFilters(f =>
-                f.Scale((int)size.X, (int)size.Y)
-            )
             .DisableChannel(Channel.Audio);
     }
 }
